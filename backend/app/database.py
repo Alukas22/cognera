@@ -7,6 +7,9 @@ from .config import AppConfig
 
 config = AppConfig()
 
+if not config.database_url:
+    raise RuntimeError("DATABASE_URL environment variable is required to start the application.")
+
 engine = create_engine(config.database_url, future=True)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, future=True)
 Base = declarative_base()
