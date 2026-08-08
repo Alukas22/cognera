@@ -18,6 +18,16 @@ class AppConfig(BaseSettings):
             return [item.strip() for item in value.split(",") if item.strip()]
         return value
 
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def normalize_database_url(cls, value):
+        if isinstance(value, str):
+            if value.startswith("postgres://"):
+                return value.replace("postgres://", "postgresql+psycopg://", 1)
+            if value.startswith("postgresql://"):
+                return value.replace("postgresql://", "postgresql+psycopg://", 1)
+        return value
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
