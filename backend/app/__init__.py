@@ -1,0 +1,1 @@
+"""Cognera backend application package."""
