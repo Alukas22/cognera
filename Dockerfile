@@ -3,6 +3,7 @@ FROM python:3.12-slim
 WORKDIR /app
 
 COPY pyproject.toml .
+COPY poetry.lock .
 COPY .env.example .
 
 RUN pip install --no-cache-dir poetry
