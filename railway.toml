@@ -1,3 +1,7 @@
 # Railway project configuration
 [project]
 name = "cognera"
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"

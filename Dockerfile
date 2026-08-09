@@ -22,6 +22,7 @@ RUN poetry config virtualenvs.create false && poetry install --no-root --no-inte
 
 COPY backend/ ./backend
 COPY --from=frontend-builder /frontend/dist ./frontend-dist
+RUN test -f /app/frontend-dist/index.html
 
 EXPOSE 8000
 CMD ["sh", "-c", "uvicorn backend.app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

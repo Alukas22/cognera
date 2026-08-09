@@ -5,7 +5,7 @@ import sys
 import uuid
 from typing import Any
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -53,6 +53,15 @@ BASE_DIR = Path(__file__).resolve().parents[2]
 FRONTEND_DIST_DIR = BASE_DIR / "frontend-dist"
 FRONTEND_ASSETS_DIR = FRONTEND_DIST_DIR / "assets"
 FRONTEND_INDEX_FILE = FRONTEND_DIST_DIR / "index.html"
+API_PREFIXES = (
+    "/matrix",
+    "/health",
+    "/version",
+    "/docs",
+    "/openapi.json",
+    "/redoc",
+    "/assets",
+)
 
 app = FastAPI(title=config.app_name, debug=config.debug, version=config.version)
 app.add_middleware(
@@ -85,23 +94,33 @@ async def add_request_id(request: Request, call_next):
 @app.on_event("startup")
 async def on_startup() -> None:
     logger.info("application.startup", extra={"app_name": config.app_name, "version": config.version})
+    logger.info(
+        "frontend.bundle",
+        extra={
+            "dist_dir": str(FRONTEND_DIST_DIR),
+            "index_path": str(FRONTEND_INDEX_FILE),
+            "index_exists": FRONTEND_INDEX_FILE.exists(),
+        },
+    )
     prepare_database_connection()
+
+
+def _serve_frontend_index() -> FileResponse:
+    if FRONTEND_INDEX_FILE.exists():
+        return FileResponse(FRONTEND_INDEX_FILE)
+    raise HTTPException(status_code=503, detail="Frontend build is not available in runtime image.")
 
 
 @app.get("/")
 async def read_root():
     logger.info("endpoint.root", extra={"path": "/"})
-    if FRONTEND_INDEX_FILE.exists():
-        return FileResponse(FRONTEND_INDEX_FILE)
-    return {"message": "Welcome to Cognera"}
+    return _serve_frontend_index()
 
 
 @app.get("/health-check")
 async def health_check_page():
     logger.info("endpoint.health_check_page", extra={"path": "/health-check"})
-    if FRONTEND_INDEX_FILE.exists():
-        return FileResponse(FRONTEND_INDEX_FILE)
-    return {"message": "Frontend build not available"}
+    return _serve_frontend_index()
 
 
 @app.get("/health")
@@ -217,3 +236,18 @@ async def matrix_generate(request: MatrixGenerateRequest | None = None) -> dict:
     seed = request.seed if request is not None and request.seed is not None else uuid.uuid4().int % (2 ** 31)
     puzzle = MatrixGenerator(RuleRegistry()).generate(seed=seed)
     return _serialize_puzzle(puzzle)
+
+
+@app.get("/{full_path:path}", include_in_schema=False)
+async def spa_fallback(full_path: str):
+    request_path = f"/{full_path}"
+
+    for prefix in API_PREFIXES:
+        if request_path == prefix or request_path.startswith(f"{prefix}/"):
+            raise HTTPException(status_code=404, detail="Not Found")
+
+    # Do not hijack real file lookups that should 404 when missing.
+    if "." in full_path.split("/")[-1]:
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    return _serve_frontend_index()
