@@ -25,6 +25,14 @@ Cognera visual object architecture is governed by
 All future visual primitives, symbol composition, transformations, and
 rendering logic must comply with this grammar.
 
+## Engineering policy
+
+Cognera mandatory development policy is defined in
+`docs/ENGINEERING_PRINCIPLES.md`.
+
+All architecture, implementation, validation, and release work must follow
+this engineering constitution.
+
 ## Getting started
 
 1. Copy `.env.example` to `.env`
