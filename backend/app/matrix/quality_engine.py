@@ -36,6 +36,10 @@ class PuzzleQualityEngine:
         has_unambiguous_solution: bool,
         has_no_redundant_rules: bool,
         every_active_rule_contributes: bool,
+        has_reasoning_depth: bool,
+        requires_entire_matrix_observation: bool,
+        rejects_trivial_single_dimension: bool,
+        perceptual_validation_passed: bool,
     ) -> tuple[bool, float, dict[str, float], dict[str, bool]]:
         checks = self._validation_checks(
             puzzle,
@@ -43,6 +47,10 @@ class PuzzleQualityEngine:
             has_unambiguous_solution=has_unambiguous_solution,
             has_no_redundant_rules=has_no_redundant_rules,
             every_active_rule_contributes=every_active_rule_contributes,
+            has_reasoning_depth=has_reasoning_depth,
+            requires_entire_matrix_observation=requires_entire_matrix_observation,
+            rejects_trivial_single_dimension=rejects_trivial_single_dimension,
+            perceptual_validation_passed=perceptual_validation_passed,
         )
         components = self._quality_components(puzzle, checks)
         quality_score = _clamp(
@@ -74,6 +82,10 @@ class PuzzleQualityEngine:
         has_unambiguous_solution: bool,
         has_no_redundant_rules: bool,
         every_active_rule_contributes: bool,
+        has_reasoning_depth: bool,
+        requires_entire_matrix_observation: bool,
+        rejects_trivial_single_dimension: bool,
+        perceptual_validation_passed: bool,
     ) -> dict[str, bool]:
         option_keys = [self._figure_key(option.figure) for option in puzzle.options]
         distractor_keys = [self._figure_key(d.figure) for d in puzzle.distractors]
@@ -106,6 +118,10 @@ class PuzzleQualityEngine:
             "no_redundant_rules": has_no_redundant_rules,
             "puzzle_is_logically_solvable": is_logically_solved,
             "puzzle_is_unambiguous": has_unambiguous_solution,
+            "minimum_reasoning_depth": has_reasoning_depth,
+            "requires_entire_matrix_observation": requires_entire_matrix_observation,
+            "rejects_trivial_single_dimension": rejects_trivial_single_dimension,
+            "perceptual_validation_passed": perceptual_validation_passed,
             "explanation_matches_applied_rules": explanation_matches,
             "distractors_are_unique_and_meaningful": distractor_reasons_ok and len(puzzle.distractors) == len(set(distractor_keys)),
         }
@@ -120,14 +136,21 @@ class PuzzleQualityEngine:
             + float(checks["puzzle_is_unambiguous"])
             + float(checks["no_redundant_rules"])
             + float(checks["every_active_rule_contributes_to_solution"])
-        ) / 4.0
+            + float(checks["minimum_reasoning_depth"])
+            + float(checks["requires_entire_matrix_observation"])
+            + float(checks["rejects_trivial_single_dimension"])
+            + float(checks["perceptual_validation_passed"])
+        ) / 8.0
 
         distractor_quality = self._distractor_quality(puzzle)
 
         explanation_quality = 0.0
         if checks["explanation_matches_applied_rules"]:
             rule_steps = puzzle.explanation.count("Rule ")
-            explanation_quality = _clamp(0.65 + min(0.35, rule_steps * 0.12))
+            incorrect_steps = puzzle.explanation.count("Option ")
+            expected_incorrect = max(0, len([option for option in puzzle.options if not option.is_correct]))
+            coverage = 1.0 if expected_incorrect == 0 else min(1.0, incorrect_steps / expected_incorrect)
+            explanation_quality = _clamp(0.5 + min(0.3, rule_steps * 0.15) + 0.2 * coverage)
 
         visual_diversity = self._visual_diversity(puzzle)
         reasoning_depth = self._reasoning_depth(puzzle)
