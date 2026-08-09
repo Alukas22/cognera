@@ -21,6 +21,9 @@ psycopg = { version = "^3.2.0", extras = ["binary"] }
 pytest = "^8.0"
 httpx = "^0.28.0"
 
+[tool.poetry.scripts]
+cognera-quality = "backend.app.matrix.quality_tools:main"
+
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"

@@ -56,10 +56,14 @@ def test_matrix_generator_composes_multiple_rules() -> None:
     assert len(puzzle.skill_profile.skills) >= 1
     assert puzzle.correct_answer is not None
     assert 0.0 <= puzzle.difficulty <= 1.0
+    assert puzzle.difficulty_label in {"Easy", "Medium", "Hard", "Expert"}
     assert puzzle.explanation
+    assert "Rule 1" in puzzle.explanation
     assert len(puzzle.options) == 6
     assert 0 <= puzzle.correct_index < 6
     assert all(cell is None or isinstance(cell, type(puzzle.correct_answer)) for row in puzzle.grid for cell in row)
+    assert puzzle.quality_metadata is not None
+    assert puzzle.quality_score >= 0.62
 
 
 def test_composite_generation_is_deterministic() -> None:
@@ -219,6 +223,15 @@ def test_matrix_generator_explanation_references_at_least_one_applied_rule() -> 
         explanation = puzzle.explanation.lower()
         assert explanation
         assert any(rule.type.value in explanation or (rule.type == RuleType.POSITION and "row/column" in explanation) for rule in puzzle.rules)
+
+
+def test_matrix_generator_validation_results_are_all_true() -> None:
+    registry = RuleRegistry()
+    puzzle = MatrixGenerator(registry).generate(seed=2027)
+
+    assert puzzle.quality_metadata is not None
+    results = puzzle.quality_metadata["validation_results"]
+    assert all(results.values())
 
 
 def test_matrix_generator_solution_matches_rule_engine() -> None:

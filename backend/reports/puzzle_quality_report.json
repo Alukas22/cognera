@@ -1,0 +1,33 @@
+{
+  "samples_requested": 10000,
+  "samples_generated": 10000,
+  "generation_failures": 0,
+  "validation_pass_rate": 1.0,
+  "exactly_one_correct_answer_rate": 1.0,
+  "unique_option_rate": 1.0,
+  "unique_distractor_rate": 1.0,
+  "explanation_generated_rate": 1.0,
+  "answer_position_distribution": {
+    "E": 1659,
+    "B": 1635,
+    "C": 1710,
+    "A": 1702,
+    "F": 1627,
+    "D": 1667
+  },
+  "answer_position_max_deviation_ratio": 0.025999999999999954,
+  "quality_score_distribution": {
+    "high": 4011,
+    "low": 2350,
+    "medium": 3639
+  },
+  "quality_score_mean": 0.826735,
+  "quality_score_min": 0.8048000000000001,
+  "quality_score_max": 0.8363,
+  "difficulty_distribution": {
+    "Medium": 1714,
+    "Hard": 2698,
+    "Easy": 3290,
+    "Expert": 2298
+  }
+}

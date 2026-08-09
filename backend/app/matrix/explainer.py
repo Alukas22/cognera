@@ -16,9 +16,9 @@ RULE_LABELS = {
 }
 
 
-def _rule_explanation(rule_type: RuleType, value: str) -> str:
+def _rule_explanation(index: int, rule_type: RuleType, value: str) -> str:
     label = RULE_LABELS.get(rule_type, rule_type.value)
-    return f"{label.capitalize()} rule: {value}."
+    return f"Rule {index}: {label.capitalize()} rule -> {value}."
 
 
 def explain_puzzle(puzzle: MatrixPuzzle) -> str:
@@ -27,14 +27,11 @@ def explain_puzzle(puzzle: MatrixPuzzle) -> str:
     if not puzzle.rules:
         return "No rules are available for this puzzle."
 
-    rule_lines = [_rule_explanation(rule.type, str(rule.value)) for rule in puzzle.rules]
+    rule_lines = [_rule_explanation(index, rule.type, str(rule.value)) for index, rule in enumerate(puzzle.rules, start=1)]
     figure_summary = (
         f"Therefore, the missing figure is a {puzzle.correct_answer.size} "
         f"{puzzle.correct_answer.color} {puzzle.correct_answer.shape} "
         f"rotated to {puzzle.correct_answer.rotation} degrees."
     )
 
-    if len(rule_lines) == 1:
-        return f"{rule_lines[0]} {figure_summary}"
-
-    return f"Applied rules: {' '.join(rule_lines)} {figure_summary}"
+    return "\n".join([*rule_lines, figure_summary])

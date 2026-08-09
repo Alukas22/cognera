@@ -17,6 +17,12 @@ class AnswerOptionEngine:
     def build(self, puzzle: MatrixPuzzle) -> tuple[tuple[AnswerOption, ...], int, tuple[Distractor, ...]]:
         for attempt in range(4):
             candidates = self._collect_candidates(puzzle, attempt)
+            candidates.sort(
+                key=lambda candidate: (
+                    self._attribute_distance(candidate.figure, puzzle.correct_answer),
+                    self._reason_priority(candidate.reason),
+                )
+            )
             distractors: list[Distractor] = []
             seen_figures: set[tuple[str, int, str, str]] = set()
             correct_key = self._figure_key(puzzle.correct_answer)
@@ -85,7 +91,7 @@ class AnswerOptionEngine:
         for rule in puzzle.rules:
             candidates.extend(self._candidates_for_rule(puzzle, rule))
 
-        candidates.extend(self._generic_fallbacks(puzzle))
+        candidates.extend(self._strategy_candidates(puzzle))
 
         if attempt > 0:
             rng = random.Random(puzzle.seed ^ 0x51A7 ^ attempt)
@@ -108,7 +114,7 @@ class AnswerOptionEngine:
                 self._make_distractor(
                     figure=self._replace(puzzle.correct_answer, rotation=rotation),
                     reason=DistractorReason.WRONG_ROTATION,
-                    explanation="This option uses the wrong rotation for the matrix progression.",
+                    explanation="This option preserves shape, size and color but violates the rotation rule.",
                     origin_rule=RuleType.ROTATION,
                     difficulty=difficulty,
                 )
@@ -120,8 +126,8 @@ class AnswerOptionEngine:
             return [
                 self._make_distractor(
                     figure=self._replace(puzzle.correct_answer, size=size),
-                    reason=DistractorReason.PARTIAL_PATTERN,
-                    explanation="This option changes the size progression while preserving the other attributes.",
+                    reason=DistractorReason.WRONG_SIZE,
+                    explanation="This option preserves other attributes but violates the size progression.",
                     origin_rule=RuleType.SIZE,
                     difficulty=difficulty,
                 )
@@ -134,13 +140,13 @@ class AnswerOptionEngine:
                 RuleType.SHAPE: DistractorReason.WRONG_SHAPE,
                 RuleType.COUNT: DistractorReason.WRONG_COUNT,
                 RuleType.POSITION: DistractorReason.WRONG_POSITION,
-                RuleType.MIRROR: DistractorReason.PARTIAL_PATTERN,
+                RuleType.MIRROR: DistractorReason.PARTIAL_REASONING,
             }[rule.type]
             explanation = {
                 RuleType.SHAPE: "This option uses a visually similar but incorrect shape.",
-                RuleType.COUNT: "This option breaks the count progression for the target shape.",
+                RuleType.COUNT: "This option violates the shape-count progression while keeping other traits fixed.",
                 RuleType.POSITION: "This option preserves the figure style but breaks the positional pattern.",
-                RuleType.MIRROR: "This option breaks the mirror symmetry while preserving the other attributes.",
+                RuleType.MIRROR: "This option breaks mirror symmetry while preserving color, size and rotation.",
             }[rule.type]
             return [
                 self._make_distractor(
@@ -159,7 +165,7 @@ class AnswerOptionEngine:
                 self._make_distractor(
                     figure=self._replace(puzzle.correct_answer, color=color),
                     reason=DistractorReason.WRONG_COLOR,
-                    explanation="This option changes only the color and leaves the other rule effects intact.",
+                    explanation="This option changes only color and violates the color regularity.",
                     origin_rule=RuleType.COLOR,
                     difficulty=difficulty,
                 )
@@ -168,17 +174,68 @@ class AnswerOptionEngine:
 
         return []
 
-    def _generic_fallbacks(self, puzzle: MatrixPuzzle) -> list[Distractor]:
+    def _strategy_candidates(self, puzzle: MatrixPuzzle) -> list[Distractor]:
         fallback_rule = puzzle.rules[0].type if puzzle.rules else RuleType.SHAPE
         difficulty = max(0.1, puzzle.difficulty * 0.9)
+        visible_cells = [cell for row in puzzle.grid for cell in row if cell is not None]
 
         candidates: list[Distractor] = []
+        if visible_cells:
+            donor = min(visible_cells, key=lambda cell: self._attribute_distance(cell, puzzle.correct_answer))
+            candidates.append(
+                self._make_distractor(
+                    figure=donor,
+                    reason=DistractorReason.WRONG_PROGRESSION,
+                    explanation="This option copies a nearby pattern state but fails to continue the final progression step.",
+                    origin_rule=fallback_rule,
+                    difficulty=difficulty,
+                )
+            )
+
+        for rule in puzzle.rules:
+            omitted = self._candidate_for_omitted_rule(puzzle, rule.type)
+            if omitted is not None:
+                candidates.append(
+                    self._make_distractor(
+                        figure=omitted,
+                        reason=DistractorReason.OMISSION_OF_RULE,
+                        explanation="This option matches some rule constraints but omits one active rule.",
+                        origin_rule=rule.type,
+                        difficulty=self._rule_difficulty(puzzle, rule.type),
+                    )
+                )
+
+        similar_rotation = self._pick_alternative(list(ROTATIONS), puzzle.correct_answer.rotation)
+        if similar_rotation is not None:
+            candidates.append(
+                self._make_distractor(
+                    figure=self._replace(puzzle.correct_answer, rotation=similar_rotation),
+                    reason=DistractorReason.PERCEPTUAL_SIMILARITY,
+                    explanation="This option is visually similar but fails one logical constraint.",
+                    origin_rule=fallback_rule,
+                    difficulty=difficulty,
+                )
+            )
+
+        similar_size = self._pick_alternative(list(SIZES), puzzle.correct_answer.size)
+        if similar_size is not None:
+            candidates.append(
+                self._make_distractor(
+                    figure=self._replace(puzzle.correct_answer, size=similar_size),
+                    reason=DistractorReason.PARTIAL_REASONING,
+                    explanation="This option keeps the major pattern but misapplies one reasoning step.",
+                    origin_rule=fallback_rule,
+                    difficulty=difficulty,
+                )
+            )
+
+        # Keep a broad but deterministic pool so every puzzle can produce six unique options.
         for shape in self._ordered_values(SHAPES, puzzle.correct_answer.shape):
             candidates.append(
                 self._make_distractor(
                     figure=self._replace(puzzle.correct_answer, shape=shape),
-                    reason=DistractorReason.PARTIAL_PATTERN,
-                    explanation="This option is close to the correct answer but breaks part of the pattern.",
+                    reason=DistractorReason.PARTIAL_REASONING,
+                    explanation="This option uses an incorrect shape while preserving other inferred attributes.",
                     origin_rule=fallback_rule,
                     difficulty=difficulty,
                 )
@@ -187,8 +244,8 @@ class AnswerOptionEngine:
             candidates.append(
                 self._make_distractor(
                     figure=self._replace(puzzle.correct_answer, rotation=rotation),
-                    reason=DistractorReason.PARTIAL_PATTERN,
-                    explanation="This option preserves most of the pattern but rotates the figure incorrectly.",
+                    reason=DistractorReason.PERCEPTUAL_SIMILARITY,
+                    explanation="This option is visually close but applies the wrong terminal transformation.",
                     origin_rule=fallback_rule,
                     difficulty=difficulty,
                 )
@@ -197,8 +254,8 @@ class AnswerOptionEngine:
             candidates.append(
                 self._make_distractor(
                     figure=self._replace(puzzle.correct_answer, size=size),
-                    reason=DistractorReason.PARTIAL_PATTERN,
-                    explanation="This option preserves the shape but changes the size progression.",
+                    reason=DistractorReason.PARTIAL_REASONING,
+                    explanation="This option keeps the pattern frame but changes one interpreted feature.",
                     origin_rule=fallback_rule,
                     difficulty=difficulty,
                 )
@@ -207,13 +264,29 @@ class AnswerOptionEngine:
             candidates.append(
                 self._make_distractor(
                     figure=self._replace(puzzle.correct_answer, color=color),
-                    reason=DistractorReason.PARTIAL_PATTERN,
-                    explanation="This option changes a superficial attribute while leaving the rest intact.",
+                    reason=DistractorReason.PERCEPTUAL_SIMILARITY,
+                    explanation="This option changes a low-salience visual feature without fitting all rules.",
                     origin_rule=fallback_rule,
                     difficulty=difficulty,
                 )
             )
+
         return candidates
+
+    def _candidate_for_omitted_rule(self, puzzle: MatrixPuzzle, rule_type: RuleType) -> Figure | None:
+        if rule_type == RuleType.ROTATION:
+            value = self._pick_alternative(list(ROTATIONS), puzzle.correct_answer.rotation)
+            return None if value is None else self._replace(puzzle.correct_answer, rotation=value)
+        if rule_type == RuleType.SIZE:
+            value = self._pick_alternative(list(SIZES), puzzle.correct_answer.size)
+            return None if value is None else self._replace(puzzle.correct_answer, size=value)
+        if rule_type == RuleType.COLOR:
+            value = self._pick_alternative(list(COLORS), puzzle.correct_answer.color)
+            return None if value is None else self._replace(puzzle.correct_answer, color=value)
+        if rule_type in {RuleType.SHAPE, RuleType.COUNT, RuleType.POSITION, RuleType.MIRROR}:
+            value = self._pick_alternative(list(SHAPES), puzzle.correct_answer.shape)
+            return None if value is None else self._replace(puzzle.correct_answer, shape=value)
+        return None
 
     def _shape_candidates(self, puzzle: MatrixPuzzle) -> list[str]:
         visible_shapes = []
@@ -224,6 +297,42 @@ class AnswerOptionEngine:
 
         remaining = [shape for shape in SHAPES if shape != puzzle.correct_answer.shape and shape not in visible_shapes]
         return visible_shapes + remaining
+
+    def _reason_priority(self, reason: DistractorReason) -> int:
+        order = [
+            DistractorReason.WRONG_ROTATION,
+            DistractorReason.WRONG_SHAPE,
+            DistractorReason.WRONG_COLOR,
+            DistractorReason.WRONG_SIZE,
+            DistractorReason.WRONG_COUNT,
+            DistractorReason.WRONG_POSITION,
+            DistractorReason.WRONG_PROGRESSION,
+            DistractorReason.OMISSION_OF_RULE,
+            DistractorReason.PARTIAL_REASONING,
+            DistractorReason.PERCEPTUAL_SIMILARITY,
+            DistractorReason.PARTIAL_PATTERN,
+            DistractorReason.MIRROR_INSTEAD_OF_ROTATION,
+        ]
+        try:
+            return order.index(reason)
+        except ValueError:
+            return len(order)
+
+    def _attribute_distance(self, first: Figure, second: Figure) -> int:
+        return sum(
+            [
+                first.shape != second.shape,
+                first.rotation != second.rotation,
+                first.size != second.size,
+                first.color != second.color,
+            ]
+        )
+
+    def _pick_alternative(self, values: list[str] | list[int], correct: str | int) -> str | int | None:
+        ordered = self._ordered_values(values, correct)
+        if not ordered:
+            return None
+        return ordered[0]
 
     def _ordered_values(self, values: list[str] | tuple[int, ...] | tuple[str, ...], correct_value: str | int) -> list[str | int]:
         ordered = [value for value in values if value != correct_value]

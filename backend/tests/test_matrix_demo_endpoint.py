@@ -27,6 +27,12 @@ def test_matrix_demo_endpoint_returns_playable_puzzle() -> None:
     assert payload["skills"]["VISUAL_PATTERN_RECOGNITION"] == 0.8
     assert "difficulty_profile" in payload
     assert payload["difficulty_profile"]["overall"] == payload["difficulty"]
+    assert payload["difficulty_label"] in {"Easy", "Medium", "Hard", "Expert"}
+    assert "quality_score" in payload
+    assert isinstance(payload["quality_score"], float)
+    assert 0.0 <= payload["quality_score"] <= 1.0
+    assert "metadata" in payload
+    assert payload["metadata"]["validation_results"]["puzzle_is_unambiguous"] is True
 
 
 def test_matrix_demo_endpoint_is_deterministic() -> None:
@@ -75,9 +81,24 @@ def test_matrix_generate_endpoint_returns_expected_schema() -> None:
         "distractor_strength",
     }
     assert payload["difficulty_profile"]["overall"] == payload["difficulty"]
+    assert payload["difficulty_label"] in {"Easy", "Medium", "Hard", "Expert"}
     assert isinstance(payload["explanation"], str)
     assert payload["explanation"]
     assert any(rule["type"] in payload["explanation"].lower() for rule in payload["rules"])
+    assert isinstance(payload["quality_score"], float)
+    assert 0.0 <= payload["quality_score"] <= 1.0
+    assert isinstance(payload["quality_components"], dict)
+    assert set(payload["quality_components"]) == {
+        "uniqueness",
+        "logical_clarity",
+        "distractor_quality",
+        "explanation_quality",
+        "visual_diversity",
+        "reasoning_depth",
+    }
+    assert isinstance(payload["metadata"], dict)
+    assert "active_rules" in payload["metadata"]
+    assert "validation_results" in payload["metadata"]
 
 
 def test_matrix_generate_endpoint_is_deterministic_for_same_seed() -> None:

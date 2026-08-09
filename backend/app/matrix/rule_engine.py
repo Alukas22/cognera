@@ -12,6 +12,7 @@ from .answer_options import AnswerOptionEngine
 from .difficulty_engine import CognitiveDifficultyEngine
 from .explainer import explain_puzzle
 from .models import Figure, MatrixPuzzle, Rule, SkillProfile
+from .quality_engine import PuzzleQualityEngine
 from .rules import BaseRule, MISSING_COL, MISSING_ROW, RuleType
 
 
@@ -183,20 +184,29 @@ class MatrixGenerator:
         self.constraint_engine = RuleConstraintEngine()
         self.answer_option_engine = AnswerOptionEngine()
         self.difficulty_engine = CognitiveDifficultyEngine()
+        self.quality_engine = PuzzleQualityEngine()
         self._compatible_rule_sets: list[list[BaseRule]] | None = None
 
     def generate(self, seed: int) -> MatrixPuzzle:
-        if self.rule is not None:
-            puzzle = self.rule.generate(seed)
-            return self._finalize_puzzle(puzzle)
+        max_attempts = 40
+        for attempt in range(max_attempts):
+            attempt_seed = seed + (attempt * 9973)
 
-        selected_rules = self._select_rules(seed)
-        if len(selected_rules) == 1:
-            puzzle = selected_rules[0].generate(seed)
-        else:
-            puzzle = CompositeRule(selected_rules).generate(seed)
+            if self.rule is not None:
+                selected_rules = [self.rule]
+                puzzle = self.rule.generate(attempt_seed)
+            else:
+                selected_rules = self._select_rules(attempt_seed)
+                if len(selected_rules) == 1:
+                    puzzle = selected_rules[0].generate(attempt_seed)
+                else:
+                    puzzle = CompositeRule(selected_rules).generate(attempt_seed)
 
-        return self._finalize_puzzle(puzzle)
+            finalized = self._finalize_puzzle(puzzle, selected_rules, enforce_quality_gate=True)
+            if finalized is not None:
+                return finalized
+
+        raise ValueError("Unable to generate a puzzle meeting quality and validation requirements.")
 
     def _select_rules(self, seed: int) -> list[BaseRule]:
         if self._compatible_rule_sets is None:
@@ -220,7 +230,20 @@ class MatrixGenerator:
         selected = self._compatible_rule_sets[rng.randrange(len(self._compatible_rule_sets))]
         return [self.registry.get(rule.rule_type) for rule in selected]
 
-    def _finalize_puzzle(self, puzzle: MatrixPuzzle) -> MatrixPuzzle:
+    def _finalize_puzzle(
+        self,
+        puzzle: MatrixPuzzle,
+        selected_rules: list[BaseRule] | None = None,
+        enforce_quality_gate: bool = False,
+    ) -> MatrixPuzzle | None:
+        if selected_rules is None:
+            if self.rule is not None:
+                selected_rules = [self.rule]
+            elif self.registry is not None:
+                selected_rules = [self.registry.get(rule.type) for rule in puzzle.rules]
+            else:
+                selected_rules = []
+
         explanation = explain_puzzle(puzzle)
         provisional_difficulty = sum(rule.difficulty for rule in puzzle.rules) / max(len(puzzle.rules), 1)
         base_puzzle = replace(
@@ -238,11 +261,119 @@ class MatrixGenerator:
         )
         difficulty_profile = self.difficulty_engine.evaluate(puzzle_with_options)
 
-        return replace(
+        calibrated = replace(
             puzzle_with_options,
             difficulty=difficulty_profile.overall,
             difficulty_profile=difficulty_profile,
         )
+
+        is_logically_solved = all(rule.validate(calibrated.grid) for rule in selected_rules)
+        has_unambiguous_solution = self._is_unambiguous(calibrated)
+        has_no_redundant_rules = self._has_no_redundant_rules(selected_rules)
+        active_rule_coverage = self._every_rule_has_signal(calibrated)
+
+        accepted, quality_score, quality_components, checks = self.quality_engine.assess(
+            calibrated,
+            is_logically_solved=is_logically_solved,
+            has_unambiguous_solution=has_unambiguous_solution,
+            has_no_redundant_rules=has_no_redundant_rules,
+            every_active_rule_contributes=active_rule_coverage,
+        )
+
+        if enforce_quality_gate and not accepted:
+            return None
+
+        difficulty_label = self.quality_engine.difficulty_label(calibrated.difficulty, len(calibrated.rules))
+        metadata = {
+            "active_rules": [rule.type.value for rule in calibrated.rules],
+            "reasoning_chain": calibrated.explanation.splitlines(),
+            "distractor_strategy": [
+                {
+                    "label": option.label,
+                    "reason": option.reason.value if option.reason is not None else None,
+                    "origin_rule": option.origin_rule.value if option.origin_rule is not None else None,
+                }
+                for option in calibrated.options
+                if not option.is_correct
+            ],
+            "validation_results": checks,
+            "quality_score": quality_score,
+            "estimated_difficulty": {
+                "label": difficulty_label,
+                "score": calibrated.difficulty,
+            },
+        }
+
+        return replace(
+            calibrated,
+            difficulty_label=difficulty_label,
+            quality_score=quality_score,
+            quality_components=quality_components,
+            quality_metadata=metadata,
+        )
+
+    def _is_unambiguous(self, puzzle: MatrixPuzzle) -> bool:
+        correct_count = sum(1 for option in puzzle.options if option.is_correct)
+        if correct_count != 1:
+            return False
+
+        correct_key = (
+            puzzle.correct_answer.shape,
+            puzzle.correct_answer.rotation,
+            puzzle.correct_answer.size,
+            puzzle.correct_answer.color,
+        )
+        seen: set[tuple[str, int, str, str]] = set()
+        for option in puzzle.options:
+            key = (option.figure.shape, option.figure.rotation, option.figure.size, option.figure.color)
+            if key in seen:
+                return False
+            seen.add(key)
+            if option.is_correct:
+                if key != correct_key:
+                    return False
+            elif key == correct_key:
+                return False
+        return True
+
+    def _has_no_redundant_rules(self, selected_rules: list[BaseRule]) -> bool:
+        if len(selected_rules) <= 1:
+            return True
+
+        rule_types = [rule.rule_type for rule in selected_rules]
+        if len(set(rule_types)) != len(rule_types):
+            return False
+
+        impacted_dimensions = {
+            self._rule_dimension(rule_type)
+            for rule_type in rule_types
+            if self._rule_dimension(rule_type) is not None
+        }
+        return len(impacted_dimensions) >= 2
+
+    def _every_rule_has_signal(self, puzzle: MatrixPuzzle) -> bool:
+        explanation = puzzle.explanation.lower()
+        distractor_rule_types = {
+            option.origin_rule
+            for option in puzzle.options
+            if not option.is_correct and option.origin_rule is not None
+        }
+        for rule in puzzle.rules:
+            keyword = rule.type.value
+            if keyword not in explanation and rule.type not in distractor_rule_types:
+                return False
+        return True
+
+    def _rule_dimension(self, rule_type: RuleType) -> str | None:
+        if rule_type in {RuleType.SHAPE, RuleType.COUNT, RuleType.POSITION, RuleType.MIRROR}:
+            return "shape"
+        if rule_type == RuleType.ROTATION:
+            return "rotation"
+        if rule_type == RuleType.SIZE:
+            return "size"
+        if rule_type == RuleType.COLOR:
+            return "color"
+        return None
 
 
 def discover_rules() -> Iterable[type[BaseRule]]:

@@ -27,6 +27,11 @@ class DistractorReason(str, Enum):
     WRONG_POSITION = "WRONG_POSITION"
     WRONG_COLOR = "WRONG_COLOR"
     WRONG_SHAPE = "WRONG_SHAPE"
+    WRONG_SIZE = "WRONG_SIZE"
+    WRONG_PROGRESSION = "WRONG_PROGRESSION"
+    OMISSION_OF_RULE = "OMISSION_OF_RULE"
+    PARTIAL_REASONING = "PARTIAL_REASONING"
+    PERCEPTUAL_SIMILARITY = "PERCEPTUAL_SIMILARITY"
     PARTIAL_PATTERN = "PARTIAL_PATTERN"
     MIRROR_INSTEAD_OF_ROTATION = "MIRROR_INSTEAD_OF_ROTATION"
 
@@ -151,6 +156,10 @@ class MatrixPuzzle:
     options: tuple[AnswerOption, ...] = ()
     correct_index: int = 0
     difficulty_profile: DifficultyProfile | None = None
+    difficulty_label: str = "Medium"
+    quality_score: float = 0.0
+    quality_components: dict[str, float] | None = None
+    quality_metadata: dict[str, Any] | None = None
 
     @property
     def solution(self) -> Figure:

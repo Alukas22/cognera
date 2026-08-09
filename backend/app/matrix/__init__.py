@@ -18,6 +18,7 @@ from .models import (
 )
 from .answer_options import AnswerOptionEngine
 from .difficulty_engine import CognitiveDifficultyEngine, DifficultyEngine
+from .quality_engine import PuzzleQualityEngine
 from .rule_engine import MatrixGenerator, RuleRegistry, RuleConstraintEngine, BaseRule
 from .explainer import explain_puzzle
 
@@ -39,5 +40,6 @@ __all__ = [
     "RuleRegistry",
     "RuleConstraintEngine",
     "DifficultyEngine",
+    "PuzzleQualityEngine",
     "explain_puzzle",
 ]
