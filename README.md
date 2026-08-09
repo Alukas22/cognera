@@ -33,6 +33,18 @@ Cognera mandatory development policy is defined in
 All architecture, implementation, validation, and release work must follow
 this engineering constitution.
 
+## Known failure patterns
+
+Cognera maintains a permanent failure catalogue in
+`docs/KNOWN_FAILURE_PATTERNS.md`.
+
+When adding a new failure pattern:
+
+1. Add a new `FP-###` entry in `docs/KNOWN_FAILURE_PATTERNS.md`.
+2. Add detector logic in `backend/app/matrix/failure_patterns.py`.
+3. Add a dedicated regression test in `backend/tests/test_failure_patterns.py`.
+4. Verify quality reports include frequency and trend for the new pattern.
+
 ## Getting started
 
 1. Copy `.env.example` to `.env`

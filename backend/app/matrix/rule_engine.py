@@ -12,6 +12,7 @@ from typing import Iterable
 from .answer_options import AnswerOptionEngine
 from .difficulty_engine import CognitiveDifficultyEngine
 from .expert_reviewer import ExpertQualityReviewer
+from .failure_patterns import detect_known_failure_patterns
 from .explainer import explain_puzzle
 from .human_reasoning_validator import HumanReasoningValidator
 from .models import Figure, MatrixPuzzle, Rule, SkillProfile
@@ -242,15 +243,26 @@ class MatrixGenerator:
                 return replace(finalized, seed=seed, quality_metadata=metadata)
 
             checks = (finalized.quality_metadata or {}).get("validation_results", {})
+            pattern_ids = {
+                pattern.get("id")
+                for pattern in (finalized.quality_metadata or {}).get("failure_patterns_detected", [])
+                if isinstance(pattern, dict) and pattern.get("id")
+            }
             failed = [name for name, passed in checks.items() if not passed]
             rule_set = [rule.rule_type.value for rule in selected_rules]
             if failed:
                 for name in failed:
+                    failure_pattern_id = None
+                    if name.startswith("known_failure_pattern_"):
+                        failure_pattern_id = name.replace("known_failure_pattern_", "")
+                    elif len(pattern_ids) == 1:
+                        failure_pattern_id = next(iter(pattern_ids))
                     rejection_reasons[name] += 1
                     rejection_events.append(
                         {
                             "rejection_reason": "validation_failed",
                             "violated_validation_rule": name,
+                            "failure_pattern_id": failure_pattern_id,
                             "generator_rule_set": rule_set,
                             "seed": attempt_seed,
                         }
@@ -393,7 +405,24 @@ class MatrixGenerator:
             "human_reasoning_validator_acceptance": len(human_review.rejection_reasons) == 0,
         }
 
-        accepted = strict_logical_ok and quality_accepted and reviewer_accepted and len(human_review.rejection_reasons) == 0
+        failure_patterns = detect_known_failure_patterns(
+            calibrated,
+            validation_checks=checks,
+            perceptual_reasons=perceptual_reasons,
+            quality_components=quality_components,
+        )
+        failure_pattern_ids = [pattern.pattern_id for pattern in failure_patterns]
+        checks["known_failure_patterns_clear"] = len(failure_patterns) == 0
+        for pattern in failure_patterns:
+            checks[f"known_failure_pattern_{pattern.pattern_id}"] = False
+
+        accepted = (
+            strict_logical_ok
+            and quality_accepted
+            and reviewer_accepted
+            and len(human_review.rejection_reasons) == 0
+            and len(failure_patterns) == 0
+        )
 
         if enforce_quality_gate and not accepted:
             return None
@@ -418,6 +447,8 @@ class MatrixGenerator:
             "expert_reviewer_diagnostics": reviewer_diagnostics,
             "human_reasoning_review": human_review.as_dict(),
             "human_reasoning_diagnostics": human_diagnostics,
+            "failure_patterns_detected": [pattern.as_dict() for pattern in failure_patterns],
+            "failure_pattern_ids": failure_pattern_ids,
             "quality_score": quality_score,
             "accepted_by_quality_gate": accepted,
             "accepted_by_strict_logical_validation": strict_logical_ok,
