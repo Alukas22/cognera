@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, ClassVar
 
-from .models import CognitiveSkill, Figure, MatrixPuzzle, Rule, SkillProfile
+from .models import CognitiveSkill, Figure, MatrixPuzzle, Rule, RuleType, SkillProfile
 
 
 SHAPES = ["triangle", "square", "circle", "diamond"]
@@ -18,26 +18,6 @@ ROTATIONS = (0, 90, 180, 270)
 ANSWER_ALTERNATIVES = 4
 MISSING_ROW = 2
 MISSING_COL = 2
-
-
-class RuleType(str, Enum):
-    """Supported rule categories for Cognera matrix puzzles."""
-
-    ROTATION = "rotation"
-    COUNT = "count"
-    SHAPE = "shape"
-    SIZE = "size"
-    POSITION = "position"
-    COLOR = "color"
-
-
-@dataclass(frozen=True)
-class Rule:
-    """A reasoning rule used to generate or explain a matrix puzzle."""
-
-    type: RuleType
-    value: Any
-    difficulty: float
 
 
 class BaseRule(ABC):
@@ -190,75 +170,565 @@ class RotationRule(BaseRule):
 
 
 class CountRule(BaseRule):
-    """Placeholder for future count rule implementation."""
+    """Count rule plugin implementation."""
 
     rule_type = RuleType.COUNT
 
     def generate(self, seed: int) -> MatrixPuzzle:
-        raise NotImplementedError
+        rng = random.Random(seed)
+        target_shape = rng.choice(SHAPES)
+        filler_shapes = [shape for shape in SHAPES if shape != target_shape]
+        base_size = rng.choice(SIZES)
+        base_color = rng.choice(COLORS)
+        base_rotation = rng.choice(ROTATIONS)
+
+        rule = Rule(
+            type=RuleType.COUNT,
+            value=f"Count the number of {target_shape} figures in each row.",
+            difficulty=self.difficulty(),
+        )
+
+        grid: list[list[Figure | None]] = []
+        for row in range(3):
+            row_cells: list[Figure | None] = []
+            for col in range(3):
+                if row == MISSING_ROW and col == MISSING_COL:
+                    row_cells.append(None)
+                    continue
+                if row == 0:
+                    shape = filler_shapes[col % len(filler_shapes)]
+                elif row == 1:
+                    shape = target_shape if col == 0 else filler_shapes[col - 1]
+                else:
+                    shape = target_shape if col in (0, 1) else filler_shapes[0]
+                row_cells.append(
+                    Figure(
+                        shape=shape,
+                        rotation=base_rotation,
+                        size=base_size,
+                        color=base_color,
+                    )
+                )
+            grid.append(row_cells)
+
+        correct_answer = Figure(
+            shape=target_shape,
+            rotation=base_rotation,
+            size=base_size,
+            color=base_color,
+        )
+
+        distractors = tuple(
+            Figure(
+                shape=shape,
+                rotation=base_rotation,
+                size=base_size,
+                color=base_color,
+            )
+            for shape in filler_shapes[:ANSWER_ALTERNATIVES - 1]
+        )
+
+        skill_profile = SkillProfile(
+            skills={
+                CognitiveSkill.VISUAL_PATTERN_RECOGNITION: 0.75,
+                CognitiveSkill.WORKING_MEMORY: 0.55,
+                CognitiveSkill.ATTENTION: 0.7,
+                CognitiveSkill.PROCESSING_SPEED: 0.4,
+                CognitiveSkill.ABSTRACT_REASONING: 0.5,
+                CognitiveSkill.EXECUTIVE_FUNCTION: 0.45,
+                CognitiveSkill.MENTAL_ROTATION: 0.15,
+            }
+        )
+
+        return MatrixPuzzle(
+            seed=seed,
+            rules=(rule,),
+            grid=tuple(tuple(cell for cell in row) for row in grid),
+            correct_answer=correct_answer,
+            distractors=distractors,
+            skill_profile=skill_profile,
+        )
 
     def validate(self, grid: tuple[tuple[Figure | None, ...], ...]) -> bool:
-        raise NotImplementedError
+        visible = [cell for row in grid for cell in row if cell is not None]
+        if len(visible) != 8:
+            return False
+
+        if len({cell.size for cell in visible}) != 1 or len({cell.color for cell in visible}) != 1 or len({cell.rotation for cell in visible}) != 1:
+            return False
+
+        def row_counts(shape: str) -> list[int]:
+            return [sum(1 for cell in row if cell is not None and cell.shape == shape) for row in grid]
+
+        for shape in SHAPES:
+            if row_counts(shape) == [0, 1, 2]:
+                return True
+
+        return False
 
     def explain(self) -> str:
-        return "Count rule placeholder."
+        return (
+            "The number of the target shape increases by one in each row from top to "
+            "bottom, so the missing cell completes that count progression."
+        )
 
     def difficulty(self) -> float:
-        return 0.0
+        return 0.8
 
 
 class ShapeRule(BaseRule):
-    """Placeholder for future shape rule implementation."""
+    """Shape rule plugin implementation."""
 
     rule_type = RuleType.SHAPE
 
     def generate(self, seed: int) -> MatrixPuzzle:
-        raise NotImplementedError
+        rng = random.Random(seed)
+        offset = rng.randrange(len(SHAPES))
+        base_size = rng.choice(SIZES)
+        base_color = rng.choice(COLORS)
+        base_rotation = rng.choice(ROTATIONS)
+
+        rule = Rule(
+            type=RuleType.SHAPE,
+            value="Shapes follow a diagonal progression across the matrix.",
+            difficulty=self.difficulty(),
+        )
+
+        grid: list[list[Figure | None]] = []
+        for row in range(3):
+            row_cells: list[Figure | None] = []
+            for col in range(3):
+                if row == MISSING_ROW and col == MISSING_COL:
+                    row_cells.append(None)
+                    continue
+                shape = SHAPES[(offset + row + col) % len(SHAPES)]
+                row_cells.append(
+                    Figure(
+                        shape=shape,
+                        rotation=base_rotation,
+                        size=base_size,
+                        color=base_color,
+                    )
+                )
+            grid.append(row_cells)
+
+        correct_answer = Figure(
+            shape=SHAPES[(offset + MISSING_ROW + MISSING_COL) % len(SHAPES)],
+            rotation=base_rotation,
+            size=base_size,
+            color=base_color,
+        )
+
+        distractors = tuple(
+            Figure(
+                shape=shape,
+                rotation=base_rotation,
+                size=base_size,
+                color=base_color,
+            )
+            for shape in SHAPES
+            if shape != correct_answer.shape
+        )[:ANSWER_ALTERNATIVES - 1]
+
+        skill_profile = SkillProfile(
+            skills={
+                CognitiveSkill.VISUAL_PATTERN_RECOGNITION: 0.95,
+                CognitiveSkill.WORKING_MEMORY: 0.3,
+                CognitiveSkill.ATTENTION: 0.5,
+                CognitiveSkill.PROCESSING_SPEED: 0.4,
+                CognitiveSkill.ABSTRACT_REASONING: 0.6,
+                CognitiveSkill.EXECUTIVE_FUNCTION: 0.35,
+                CognitiveSkill.MENTAL_ROTATION: 0.2,
+            }
+        )
+
+        return MatrixPuzzle(
+            seed=seed,
+            rules=(rule,),
+            grid=tuple(tuple(cell for cell in row) for row in grid),
+            correct_answer=correct_answer,
+            distractors=distractors,
+            skill_profile=skill_profile,
+        )
 
     def validate(self, grid: tuple[tuple[Figure | None, ...], ...]) -> bool:
-        raise NotImplementedError
+        visible = [cell for row in grid for cell in row if cell is not None]
+        if len(visible) != 8:
+            return False
+
+        if len({cell.size for cell in visible}) != 1 or len({cell.color for cell in visible}) != 1 or len({cell.rotation for cell in visible}) != 1:
+            return False
+
+        for offset in range(len(SHAPES)):
+            if all(
+                grid[row][col] is None or grid[row][col].shape == SHAPES[(offset + row + col) % len(SHAPES)]
+                for row in range(3)
+                for col in range(3)
+            ):
+                return True
+
+        return False
 
     def explain(self) -> str:
-        return "Shape rule placeholder."
+        return (
+            "Shapes rotate through a fixed sequence across the matrix, advancing by "
+            "one position with each cell. The missing cell continues that shape sequence."
+        )
 
     def difficulty(self) -> float:
-        return 0.0
+        return 0.7
 
 
 class SizeRule(BaseRule):
-    """Placeholder for future size rule implementation."""
+    """Size rule plugin implementation."""
 
     rule_type = RuleType.SIZE
 
     def generate(self, seed: int) -> MatrixPuzzle:
-        raise NotImplementedError
+        rng = random.Random(seed)
+        offset = rng.randrange(len(SIZES))
+        base_shape = rng.choice(SHAPES)
+        base_color = rng.choice(COLORS)
+        base_rotation = rng.choice(ROTATIONS)
+
+        rule = Rule(
+            type=RuleType.SIZE,
+            value="Sizes progress systematically across each column.",
+            difficulty=self.difficulty(),
+        )
+
+        grid: list[list[Figure | None]] = []
+        for row in range(3):
+            row_cells: list[Figure | None] = []
+            for col in range(3):
+                if row == MISSING_ROW and col == MISSING_COL:
+                    row_cells.append(None)
+                    continue
+                size = SIZES[(offset + col) % len(SIZES)]
+                row_cells.append(
+                    Figure(
+                        shape=base_shape,
+                        rotation=base_rotation,
+                        size=size,
+                        color=base_color,
+                    )
+                )
+            grid.append(row_cells)
+
+        correct_answer = Figure(
+            shape=base_shape,
+            rotation=base_rotation,
+            size=SIZES[(offset + MISSING_COL) % len(SIZES)],
+            color=base_color,
+        )
+
+        available_sizes = [size for size in SIZES if size != correct_answer.size]
+        distractor_sizes = (available_sizes * 2)[:ANSWER_ALTERNATIVES - 1]
+        distractors = tuple(
+            Figure(
+                shape=base_shape,
+                rotation=base_rotation,
+                size=size,
+                color=base_color,
+            )
+            for size in distractor_sizes
+        )
+
+        skill_profile = SkillProfile(
+            skills={
+                CognitiveSkill.VISUAL_PATTERN_RECOGNITION: 0.85,
+                CognitiveSkill.WORKING_MEMORY: 0.35,
+                CognitiveSkill.ATTENTION: 0.55,
+                CognitiveSkill.PROCESSING_SPEED: 0.45,
+                CognitiveSkill.ABSTRACT_REASONING: 0.5,
+                CognitiveSkill.EXECUTIVE_FUNCTION: 0.3,
+                CognitiveSkill.MENTAL_ROTATION: 0.2,
+            }
+        )
+
+        return MatrixPuzzle(
+            seed=seed,
+            rules=(rule,),
+            grid=tuple(tuple(cell for cell in row) for row in grid),
+            correct_answer=correct_answer,
+            distractors=distractors,
+            skill_profile=skill_profile,
+        )
 
     def validate(self, grid: tuple[tuple[Figure | None, ...], ...]) -> bool:
-        raise NotImplementedError
+        visible = [cell for row in grid for cell in row if cell is not None]
+        if len(visible) != 8:
+            return False
+
+        if len({cell.shape for cell in visible}) != 1 or len({cell.color for cell in visible}) != 1 or len({cell.rotation for cell in visible}) != 1:
+            return False
+
+        for offset in range(len(SIZES)):
+            if all(
+                grid[row][col] is None or grid[row][col].size == SIZES[(offset + col) % len(SIZES)]
+                for row in range(3)
+                for col in range(3)
+            ):
+                return True
+
+        return False
 
     def explain(self) -> str:
-        return "Size rule placeholder."
+        return (
+            "The matrix grows in size from left to right across every row, and the "
+            "missing cell follows that same column progression."
+        )
 
     def difficulty(self) -> float:
-        return 0.0
+        return 0.75
 
 
 class PositionRule(BaseRule):
-    """Placeholder for future position rule implementation."""
+    """Position rule plugin implementation."""
 
     rule_type = RuleType.POSITION
 
     def generate(self, seed: int) -> MatrixPuzzle:
-        raise NotImplementedError
+        rng = random.Random(seed)
+        target_shape = rng.choice(SHAPES)
+        filler_shape = rng.choice([shape for shape in SHAPES if shape != target_shape])
+        base_size = rng.choice(SIZES)
+        base_color = rng.choice(COLORS)
+        base_rotation = rng.choice(ROTATIONS)
+
+        rule = Rule(
+            type=RuleType.POSITION,
+            value="A special shape appears along the main diagonal positions.",
+            difficulty=self.difficulty(),
+        )
+
+        grid: list[list[Figure | None]] = []
+        for row in range(3):
+            row_cells: list[Figure | None] = []
+            for col in range(3):
+                if row == MISSING_ROW and col == MISSING_COL:
+                    row_cells.append(None)
+                    continue
+                shape = target_shape if row == col else filler_shape
+                row_cells.append(
+                    Figure(
+                        shape=shape,
+                        rotation=base_rotation,
+                        size=base_size,
+                        color=base_color,
+                    )
+                )
+            grid.append(row_cells)
+
+        correct_answer = Figure(
+            shape=target_shape,
+            rotation=base_rotation,
+            size=base_size,
+            color=base_color,
+        )
+
+        distractors = tuple(
+            Figure(
+                shape=filler_shape,
+                rotation=base_rotation,
+                size=base_size,
+                color=base_color,
+            )
+            for _ in range(ANSWER_ALTERNATIVES - 1)
+        )
+
+        skill_profile = SkillProfile(
+            skills={
+                CognitiveSkill.VISUAL_PATTERN_RECOGNITION: 0.9,
+                CognitiveSkill.WORKING_MEMORY: 0.4,
+                CognitiveSkill.ATTENTION: 0.5,
+                CognitiveSkill.PROCESSING_SPEED: 0.35,
+                CognitiveSkill.ABSTRACT_REASONING: 0.55,
+                CognitiveSkill.EXECUTIVE_FUNCTION: 0.3,
+                CognitiveSkill.MENTAL_ROTATION: 0.25,
+            }
+        )
+
+        return MatrixPuzzle(
+            seed=seed,
+            rules=(rule,),
+            grid=tuple(tuple(cell for cell in row) for row in grid),
+            correct_answer=correct_answer,
+            distractors=distractors,
+            skill_profile=skill_profile,
+        )
 
     def validate(self, grid: tuple[tuple[Figure | None, ...], ...]) -> bool:
-        raise NotImplementedError
+        visible = [cell for row in grid for cell in row if cell is not None]
+        if len(visible) != 8:
+            return False
+
+        if len({cell.size for cell in visible}) != 1 or len({cell.color for cell in visible}) != 1 or len({cell.rotation for cell in visible}) != 1:
+            return False
+
+        for shape in SHAPES:
+            positions = [
+                (row_index, col_index)
+                for row_index, row in enumerate(grid)
+                for col_index, cell in enumerate(row)
+                if cell is not None and cell.shape == shape
+            ]
+            if positions == [(0, 0), (1, 1)]:
+                return True
+
+        return False
 
     def explain(self) -> str:
-        return "Position rule placeholder."
+        return (
+            "A special figure occupies the diagonal positions, and the missing cell "
+            "continues that diagonal positioning."
+        )
 
     def difficulty(self) -> float:
-        return 0.0
+        return 0.85
+
+
+class MirrorRule(BaseRule):
+    """Mirror rule plugin implementation."""
+
+    rule_type = RuleType.MIRROR
+
+    def generate(self, seed: int) -> MatrixPuzzle:
+        rng = random.Random(seed)
+        axis = rng.choice(["vertical", "horizontal"])
+        base_size = rng.choice(SIZES)
+        base_color = rng.choice(COLORS)
+        base_rotation = rng.choice(ROTATIONS)
+
+        if axis == "vertical":
+            left_shapes = [rng.choice(SHAPES) for _ in range(3)]
+            middle_shapes = [rng.choice(SHAPES) for _ in range(3)]
+        else:
+            top_shapes = [rng.choice(SHAPES) for _ in range(3)]
+            middle_shapes = [rng.choice(SHAPES) for _ in range(3)]
+
+        rule = Rule(
+            type=RuleType.MIRROR,
+            value=f"Mirror symmetry across the {axis} axis.",
+            difficulty=self.difficulty(),
+        )
+
+        grid: list[list[Figure | None]] = []
+        for row in range(3):
+            row_cells: list[Figure | None] = []
+            for col in range(3):
+                if row == MISSING_ROW and col == MISSING_COL:
+                    row_cells.append(None)
+                    continue
+                if axis == "vertical":
+                    if col == 0:
+                        shape = left_shapes[row]
+                    elif col == 1:
+                        shape = middle_shapes[row]
+                    else:
+                        shape = left_shapes[row]
+                else:
+                    if row == 0:
+                        shape = top_shapes[col]
+                    elif row == 1:
+                        shape = middle_shapes[col]
+                    else:
+                        shape = top_shapes[col]
+                row_cells.append(
+                    Figure(
+                        shape=shape,
+                        rotation=base_rotation,
+                        size=base_size,
+                        color=base_color,
+                    )
+                )
+            grid.append(row_cells)
+
+        if axis == "vertical":
+            correct_answer = Figure(
+                shape=left_shapes[MISSING_ROW],
+                rotation=base_rotation,
+                size=base_size,
+                color=base_color,
+            )
+        else:
+            correct_answer = Figure(
+                shape=top_shapes[MISSING_COL],
+                rotation=base_rotation,
+                size=base_size,
+                color=base_color,
+            )
+
+        distractors = tuple(
+            Figure(
+                shape=rng.choice([shape for shape in SHAPES if shape != correct_answer.shape]),
+                rotation=base_rotation,
+                size=base_size,
+                color=base_color,
+            )
+            for _ in range(ANSWER_ALTERNATIVES - 1)
+        )
+
+        skill_profile = SkillProfile(
+            skills={
+                CognitiveSkill.VISUAL_PATTERN_RECOGNITION: 0.92,
+                CognitiveSkill.WORKING_MEMORY: 0.4,
+                CognitiveSkill.ATTENTION: 0.6,
+                CognitiveSkill.PROCESSING_SPEED: 0.5,
+                CognitiveSkill.ABSTRACT_REASONING: 0.6,
+                CognitiveSkill.EXECUTIVE_FUNCTION: 0.35,
+                CognitiveSkill.MENTAL_ROTATION: 0.25,
+            }
+        )
+
+        return MatrixPuzzle(
+            seed=seed,
+            rules=(rule,),
+            grid=tuple(tuple(cell for cell in row) for row in grid),
+            correct_answer=correct_answer,
+            distractors=distractors,
+            skill_profile=skill_profile,
+        )
+
+    def validate(self, grid: tuple[tuple[Figure | None, ...], ...]) -> bool:
+        visible = [cell for row in grid for cell in row if cell is not None]
+        if len(visible) != 8:
+            return False
+
+        if len({cell.size for cell in visible}) != 1 or len({cell.color for cell in visible}) != 1 or len({cell.rotation for cell in visible}) != 1:
+            return False
+
+        def check_axis(axis: str) -> bool:
+            for row in range(3):
+                for col in range(3):
+                    if row == MISSING_ROW and col == MISSING_COL:
+                        continue
+                    mirror = (row, 2 - col) if axis == "vertical" else (2 - row, col)
+                    if mirror == (MISSING_ROW, MISSING_COL):
+                        continue
+                    cell = grid[row][col]
+                    mirror_cell = grid[mirror[0]][mirror[1]]
+                    if cell is None or mirror_cell is None:
+                        return False
+                    if (
+                        cell.shape != mirror_cell.shape
+                        or cell.size != mirror_cell.size
+                        or cell.color != mirror_cell.color
+                        or cell.rotation != mirror_cell.rotation
+                    ):
+                        return False
+            return True
+
+        return check_axis("vertical") or check_axis("horizontal")
+
+    def explain(self) -> str:
+        return (
+            "The grid follows a mirror symmetry rule, reflecting shapes across an axis, "
+            "and the missing cell completes that mirrored layout."
+        )
+
+    def difficulty(self) -> float:
+        return 0.9
 
 
 class ColorRule(BaseRule):

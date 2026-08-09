@@ -15,6 +15,7 @@ class RuleType(str, Enum):
     SHAPE = "shape"
     SIZE = "size"
     POSITION = "position"
+    MIRROR = "mirror"
     COLOR = "color"
 
 
