@@ -54,6 +54,9 @@ BASE_DIR = Path(__file__).resolve().parents[2]
 FRONTEND_DIST_DIR = BASE_DIR / "frontend-dist"
 FRONTEND_ASSETS_DIR = FRONTEND_DIST_DIR / "assets"
 FRONTEND_INDEX_FILE = FRONTEND_DIST_DIR / "index.html"
+BUILD_COMMIT_FILE = BASE_DIR / ".build_commit_sha"
+BUILD_BRANCH_FILE = BASE_DIR / ".build_git_branch"
+BUILD_TIMESTAMP_FILE = BASE_DIR / ".build_timestamp"
 API_PREFIXES = (
     "/matrix",
     "/health",
@@ -125,6 +128,15 @@ def _first_known(*values: str | None) -> str:
     return "unknown"
 
 
+def _read_build_file(path: Path) -> str | None:
+    if not path.exists():
+        return None
+    try:
+        return path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+
+
 @app.get("/")
 async def read_root():
     logger.info("endpoint.root", extra={"path": "/"})
@@ -153,6 +165,7 @@ async def version() -> dict[str, str]:
         os.getenv("VERCEL_GIT_COMMIT_SHA"),
         os.getenv("SOURCE_VERSION"),
         os.getenv("GITHUB_SHA"),
+        _read_build_file(BUILD_COMMIT_FILE),
     )
     git_branch = _first_known(
         os.getenv("GIT_BRANCH"),
@@ -160,11 +173,13 @@ async def version() -> dict[str, str]:
         os.getenv("RAILWAY_BRANCH"),
         os.getenv("VERCEL_GIT_COMMIT_REF"),
         os.getenv("GITHUB_REF_NAME"),
+        _read_build_file(BUILD_BRANCH_FILE),
     )
     build_timestamp = _first_known(
         os.getenv("BUILD_TIMESTAMP"),
         os.getenv("RAILWAY_DEPLOYMENT_CREATED_AT"),
         os.getenv("RAILWAY_DEPLOYMENT_TRIGGERED_AT"),
+        _read_build_file(BUILD_TIMESTAMP_FILE),
     )
 
     return {
