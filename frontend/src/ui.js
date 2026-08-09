@@ -43,6 +43,7 @@ function optionButton(state, option, index) {
     <button
       class="${optionClass}"
       data-action="select-option"
+      data-testid="option-${index}"
       data-index="${index}"
       ${state.isResolved || state.loading ? "disabled" : ""}
     >
@@ -64,10 +65,75 @@ function feedbackBlock(state) {
   return `
     <div class="feedback-wrap">
       <p class="feedback ${statusClass}">${statusText}</p>
-      <p class="feedback-answer">Correct answer: ${correctOption.label} — ${renderFigure(correctOption)}</p>
-      <p class="feedback-explanation">${state.puzzle.explanation}</p>
+      <p class="feedback-answer" data-testid="correct-answer">Correct answer: ${correctOption.label} — ${renderFigure(correctOption)}</p>
+      <p class="feedback-explanation" data-testid="explanation-text">${state.puzzle.explanation}</p>
     </div>
   `;
+}
+
+function loadingOverlay(state) {
+  if (!state.loading && !state.appLoading) {
+    return "";
+  }
+  return "<div class='loading-overlay'><div class='spinner'></div><span>Loading…</span></div>";
+}
+
+function errorPanel(state) {
+  if (!state.errorMessage) {
+    return "";
+  }
+  return `
+    <section class="card fatal-panel" data-role="fatal-error">
+      <h2>Connection problem</h2>
+      <p>${state.errorMessage}</p>
+      <button class="action-button" data-action="retry">Retry</button>
+    </section>
+  `;
+}
+
+function diagnosticsPill(state) {
+  if (!state.developerMode || state.lastResponseTimeMs === null) {
+    return "";
+  }
+  return `<div class="pill" data-role="latency">API ${state.lastResponseTimeMs.toFixed(1)}ms</div>`;
+}
+
+export function renderHealthView(root, state, handlers) {
+  const health = state.health;
+  root.innerHTML = `
+    <main class="app-shell health-shell">
+      <header class="app-header card">
+        <div class="brand">
+          <div class="brand-mark">◈</div>
+          <div>
+            <h1>Cognera Health Check</h1>
+            <p class="tagline">Deployment diagnostics</p>
+          </div>
+        </div>
+        <div class="header-controls">
+          <button class="ghost-button" data-action="back-to-game">Back to Game</button>
+          <button class="action-button" data-action="refresh-health">Refresh</button>
+        </div>
+      </header>
+      ${
+        state.healthError
+          ? `<section class="card fatal-panel"><h2>Health check failed</h2><p>${state.healthError}</p></section>`
+          : ""
+      }
+      <section class="card health-grid">
+        <article class="health-item"><span>Backend Status</span><strong>${health ? health.backend_status : "--"}</strong></article>
+        <article class="health-item"><span>Backend Version</span><strong>${health ? health.backend_version : "--"}</strong></article>
+        <article class="health-item"><span>Application</span><strong>${health ? health.backend_name : "--"}</strong></article>
+        <article class="health-item"><span>Frontend Version</span><strong>${health ? health.frontend_version : "--"}</strong></article>
+        <article class="health-item"><span>Frontend Mode</span><strong>${health ? health.frontend_mode : "--"}</strong></article>
+        <article class="health-item"><span>Environment</span><strong>${health ? health.deployment_environment : "--"}</strong></article>
+      </section>
+      ${loadingOverlay(state)}
+    </main>
+  `;
+
+  root.querySelector("[data-action='refresh-health']")?.addEventListener("click", handlers.onRefreshHealth);
+  root.querySelector("[data-action='back-to-game']")?.addEventListener("click", handlers.onBackToGame);
 }
 
 export function renderApp(root, state, handlers) {
@@ -87,20 +153,24 @@ export function renderApp(root, state, handlers) {
           </div>
         </div>
         <div class="header-controls">
-          <button class="action-button" data-action="generate">Generate Puzzle</button>
+          <button class="action-button" data-action="generate" data-testid="generate-button">Generate Puzzle</button>
           <div class="pill">Difficulty ${puzzleDifficulty}</div>
           <div class="pill" data-role="timer">${elapsed}</div>
+          ${diagnosticsPill(state)}
+          <button class="ghost-button" data-action="open-health">Health</button>
         </div>
       </header>
+
+      ${errorPanel(state)}
 
       <section class="stats-grid">
         <article class="card stat">
           <span>Current Score</span>
-          <strong>${state.correctAnswers}</strong>
+          <strong data-testid="current-score">${state.correctAnswers}</strong>
         </article>
         <article class="card stat">
           <span>Puzzle Number</span>
-          <strong>${state.puzzleNumber}</strong>
+          <strong data-testid="puzzle-number">${state.puzzleNumber}</strong>
         </article>
         <article class="card stat">
           <span>Accuracy</span>
@@ -139,6 +209,7 @@ export function renderApp(root, state, handlers) {
           <button
             class="ghost-button"
             data-action="next"
+            data-testid="next-puzzle-button"
             ${state.loading ? "disabled" : ""}
           >
             Next Puzzle
@@ -156,18 +227,21 @@ export function renderApp(root, state, handlers) {
         }
         ${
           state.puzzle
-            ? `<div class="options-grid">${state.puzzle.options
+            ? `<div class="options-grid" data-testid="options-grid">${state.puzzle.options
                 .map((option, index) => optionButton(state, option, index))
                 .join("")}</div>`
             : ""
         }
-        ${feedbackBlock(state)}
+        <div data-testid="feedback-block">${feedbackBlock(state)}</div>
       </section>
+      ${loadingOverlay(state)}
     </main>
   `;
 
   root.querySelector("[data-action='generate']")?.addEventListener("click", handlers.onGeneratePuzzle);
   root.querySelector("[data-action='next']")?.addEventListener("click", handlers.onNextPuzzle);
+  root.querySelector("[data-action='retry']")?.addEventListener("click", handlers.onRetry);
+  root.querySelector("[data-action='open-health']")?.addEventListener("click", handlers.onOpenHealth);
 
   root.querySelectorAll("[data-action='select-option']").forEach((node) => {
     node.addEventListener("click", () => {

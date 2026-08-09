@@ -5,8 +5,11 @@
 
 export function createGameState(now = Date.now()) {
   return {
+    view: "game",
     loading: false,
+    appLoading: false,
     errorMessage: "",
+    healthError: "",
     sessionStartedAt: now,
     puzzleStartedAt: now,
     puzzle: null,
@@ -14,6 +17,9 @@ export function createGameState(now = Date.now()) {
     totalAnswered: 0,
     correctAnswers: 0,
     totalDifficulty: 0,
+    lastResponseTimeMs: null,
+    developerMode: import.meta.env.DEV,
+    health: null,
     selectedIndex: null,
     isResolved: false,
     lastResult: null,
@@ -31,13 +37,25 @@ export function setPuzzle(state, puzzle, now = Date.now()) {
   return {
     ...state,
     loading: false,
+    appLoading: false,
     errorMessage: "",
     puzzle,
     puzzleNumber: state.puzzleNumber + 1,
     selectedIndex: null,
     isResolved: false,
     lastResult: null,
+    lastResponseTimeMs:
+      typeof puzzle.response_time_ms === "number" ? puzzle.response_time_ms : null,
     puzzleStartedAt: now,
+  };
+}
+
+export function setHealthData(state, health) {
+  return {
+    ...state,
+    appLoading: false,
+    healthError: "",
+    health,
   };
 }
 

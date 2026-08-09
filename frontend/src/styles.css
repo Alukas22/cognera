@@ -194,6 +194,7 @@ body {
 }
 
 .ghost-button {
+  color: var(--ink);
   padding: 8px 12px;
   border: 1px solid var(--border);
   background: #fff;
@@ -265,6 +266,80 @@ body {
   color: var(--ink);
 }
 
+.fatal-panel {
+  padding: 16px;
+  border-color: #fecaca;
+  background: #fff7f7;
+}
+
+.fatal-panel h2 {
+  margin-top: 0;
+  margin-bottom: 8px;
+}
+
+.fatal-panel p {
+  margin-top: 0;
+  margin-bottom: 14px;
+  color: #7f1d1d;
+}
+
+.loading-overlay {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.92);
+  color: #fff;
+  font-size: 0.82rem;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.2);
+}
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+
+.health-grid {
+  padding: 16px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.health-item {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #f8fafc;
+  padding: 12px;
+  display: grid;
+  gap: 4px;
+}
+
+.health-item span {
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.75rem;
+}
+
+.health-item strong {
+  font-size: 1rem;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .empty-state {
   color: var(--muted);
   margin: 0;
@@ -280,6 +355,10 @@ body {
     align-items: flex-start;
     gap: 14px;
   }
+
+  .health-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 640px) {
@@ -289,5 +368,13 @@ body {
 
   .matrix-board {
     grid-template-columns: repeat(3, minmax(80px, 1fr));
+  }
+
+  .header-controls {
+    flex-wrap: wrap;
+  }
+
+  .health-grid {
+    grid-template-columns: 1fr;
   }
 }

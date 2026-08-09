@@ -22,6 +22,11 @@ poetry install
 poetry run uvicorn backend.app.main:app --host 127.0.0.1 --port 8000
 ```
 
+Backend health and version endpoints:
+
+- `GET /health`
+- `GET /version`
+
 ### Run frontend
 
 ```bash
@@ -32,6 +37,40 @@ npm run dev
 
 The frontend talks to the existing FastAPI backend using `/matrix/generate`
 with a `/matrix/demo` fallback for compatibility.
+
+### Frontend health check page
+
+Open `http://127.0.0.1:5173/health-check` to verify frontend + backend
+connectivity, app version, and deployment environment metadata.
+
+### Run frontend unit tests
+
+```bash
+cd frontend
+npm test
+```
+
+### Run Playwright E2E tests
+
+Start backend and frontend first, then run:
+
+```bash
+cd frontend
+E2E_BASE_URL=http://127.0.0.1:5173 npm run test:e2e
+```
+
+### Deployment workflow
+
+1. Push changes to `main`.
+2. GitHub Actions runs:
+	- backend tests
+	- frontend unit tests + build
+	- Playwright E2E tests
+3. Railway deploys the updated revision.
+4. Verify:
+	- CI run status is `success`
+	- Railway deployment state is `success`
+	- Browser gameplay and `/health-check` render correctly
 
 ## Milestones
 
@@ -52,3 +91,11 @@ with a `/matrix/demo` fallback for compatibility.
 - Immediate correctness feedback and explanation rendering
 - Session statistics (score, puzzle count, accuracy, elapsed time, difficulty)
 - Frontend unit tests and CI build validation
+
+### Sprint 4.1 completed capabilities
+
+- Playwright E2E coverage for the primary gameplay loop
+- Frontend timeout handling and graceful retry UX
+- Structured frontend diagnostics logging
+- Frontend health diagnostics page
+- Automated E2E execution in GitHub Actions
