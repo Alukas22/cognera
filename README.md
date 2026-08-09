@@ -15,6 +15,24 @@ The future of cognitive performance.
 2. Install Python dependencies
 3. Build frontend as needed
 
+### Run backend
+
+```bash
+poetry install
+poetry run uvicorn backend.app.main:app --host 127.0.0.1 --port 8000
+```
+
+### Run frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+The frontend talks to the existing FastAPI backend using `/matrix/generate`
+with a `/matrix/demo` fallback for compatibility.
+
 ## Milestones
 
 - Sprint 1 ✅
@@ -26,3 +44,11 @@ The future of cognitive performance.
 - Rule-specific distractor generation with metadata preservation
 - Rule overlay support for composed matrix puzzles
 - Full backend test suite verified cleanly
+
+### Sprint 4.0 completed capabilities
+
+- First playable Cognera web experience
+- Responsive matrix gameplay with 6 answer options
+- Immediate correctness feedback and explanation rendering
+- Session statistics (score, puzzle count, accuracy, elapsed time, difficulty)
+- Frontend unit tests and CI build validation
