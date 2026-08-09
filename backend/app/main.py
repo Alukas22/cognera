@@ -114,7 +114,27 @@ def _serialize_distractor(distractor):
         "reason": distractor.reason.value,
         "explanation": distractor.explanation,
         "origin_rule": distractor.origin_rule.value,
+        "difficulty": distractor.difficulty,
     }
+
+
+def _serialize_option(option):
+    payload = {
+        "label": option.label,
+        "shape": option.figure.shape,
+        "rotation": option.figure.rotation,
+        "size": option.figure.size,
+        "color": option.figure.color,
+        "is_correct": option.is_correct,
+        "difficulty": option.difficulty,
+    }
+    if option.reason is not None:
+        payload["reason"] = option.reason.value
+    if option.explanation:
+        payload["explanation"] = option.explanation
+    if option.origin_rule is not None:
+        payload["origin_rule"] = option.origin_rule.value
+    return payload
 
 
 def _serialize_rule(rule):
@@ -131,6 +151,8 @@ def _serialize_puzzle(puzzle):
         "grid": [[_serialize_figure(cell) for cell in row] for row in puzzle.grid],
         "missing_position": list(puzzle.missing_position),
         "solution": _serialize_figure(puzzle.solution),
+        "options": [_serialize_option(option) for option in puzzle.options],
+        "correct_index": puzzle.correct_index,
         "rules": [_serialize_rule(rule) for rule in puzzle.rules],
         "difficulty": puzzle.difficulty,
         "explanation": puzzle.explanation,
@@ -147,10 +169,7 @@ async def matrix_demo() -> dict:
     explanation_text = explain_puzzle(puzzle)
 
     options = [
-        _serialize_distractor(puzzle.distractors[0]),
-        _serialize_figure(puzzle.correct_answer),
-        _serialize_distractor(puzzle.distractors[1]),
-        _serialize_distractor(puzzle.distractors[2]),
+        _serialize_option(option) for option in puzzle.options
     ]
 
     return {
@@ -159,10 +178,11 @@ async def matrix_demo() -> dict:
         ],
         "missing": [2, 2],
         "options": options,
-        "correct": 1,
+        "correct": puzzle.correct_index,
+        "correct_index": puzzle.correct_index,
         "explanation": explanation_text,
         "skills": puzzle.skill_profile.as_dict(),
-        "difficulty": DifficultyEngine.score(puzzle),
+        "difficulty": puzzle.difficulty,
     }
 
 

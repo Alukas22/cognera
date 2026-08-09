@@ -16,9 +16,11 @@ def test_matrix_demo_endpoint_returns_playable_puzzle() -> None:
     assert len(payload["grid"]) == 3
     assert len(payload["grid"][0]) == 3
     assert payload["grid"][2][2] is None
-    assert len(payload["options"]) == 4
+    assert len(payload["options"]) == 6
     assert isinstance(payload["correct"], int)
-    assert payload["correct"] == 1
+    assert isinstance(payload["correct_index"], int)
+    assert payload["correct"] == payload["correct_index"]
+    assert payload["options"][payload["correct_index"]]["is_correct"] is True
     assert "explanation" in payload
     assert "skills" in payload
     assert payload["skills"]["MENTAL_ROTATION"] == 0.95
@@ -53,6 +55,10 @@ def test_matrix_generate_endpoint_returns_expected_schema() -> None:
     assert payload["grid"][2][2] is None
     assert payload["missing_position"] == [2, 2]
     assert set(payload["solution"]) == {"shape", "rotation", "size", "color"}
+    assert len(payload["options"]) == 6
+    assert isinstance(payload["correct_index"], int)
+    assert 0 <= payload["correct_index"] < 6
+    assert payload["options"][payload["correct_index"]]["is_correct"] is True
     assert 1 <= len(payload["rules"]) <= 3
     assert all(set(rule) == {"type", "value", "difficulty"} for rule in payload["rules"])
     assert isinstance(payload["difficulty"], float)

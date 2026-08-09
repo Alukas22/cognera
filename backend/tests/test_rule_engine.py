@@ -57,6 +57,8 @@ def test_matrix_generator_composes_multiple_rules() -> None:
     assert puzzle.correct_answer is not None
     assert 0.0 <= puzzle.difficulty <= 1.0
     assert puzzle.explanation
+    assert len(puzzle.options) == 6
+    assert 0 <= puzzle.correct_index < 6
     assert all(cell is None or isinstance(cell, type(puzzle.correct_answer)) for row in puzzle.grid for cell in row)
 
 
@@ -93,6 +95,48 @@ def test_matrix_generator_has_exactly_one_missing_cell() -> None:
     assert puzzle.grid[2][2] is None
 
 
+def test_matrix_generator_has_exactly_six_options_and_one_correct_answer() -> None:
+    registry = RuleRegistry()
+    puzzle = MatrixGenerator(registry).generate(seed=2024)
+
+    assert len(puzzle.options) == 6
+    assert sum(1 for option in puzzle.options if option.is_correct) == 1
+    assert puzzle.options[puzzle.correct_index].is_correct is True
+
+
+def test_matrix_generator_options_are_unique() -> None:
+    registry = RuleRegistry()
+    puzzle = MatrixGenerator(registry).generate(seed=2024)
+
+    figures = {
+        (option.figure.shape, option.figure.rotation, option.figure.size, option.figure.color)
+        for option in puzzle.options
+    }
+
+    assert len(figures) == 6
+
+
+def test_matrix_generator_same_seed_produces_same_options() -> None:
+    registry = RuleRegistry()
+    generator = MatrixGenerator(registry)
+
+    first = generator.generate(seed=2024)
+    second = generator.generate(seed=2024)
+
+    assert first.options == second.options
+    assert first.correct_index == second.correct_index
+
+
+def test_matrix_generator_different_seeds_produce_different_options() -> None:
+    registry = RuleRegistry()
+    generator = MatrixGenerator(registry)
+
+    first = generator.generate(seed=2024)
+    second = generator.generate(seed=2025)
+
+    assert first.options != second.options or first.correct_index != second.correct_index
+
+
 def test_matrix_generator_solution_matches_rule_engine() -> None:
     registry = RuleRegistry()
     puzzle = MatrixGenerator(registry).generate(seed=2024)
@@ -101,3 +145,27 @@ def test_matrix_generator_solution_matches_rule_engine() -> None:
 
     assert puzzle.grid == expected.grid
     assert puzzle.solution == expected.correct_answer
+
+
+def test_composite_rule_distractors_preserve_other_dimensions_when_possible() -> None:
+    registry = RuleRegistry()
+    puzzle = MatrixGenerator(registry).generate(seed=2024)
+
+    if len(puzzle.rules) < 2:
+        puzzle = MatrixGenerator(registry).generate(seed=2028)
+
+    assert len(puzzle.options) == 6
+    distractors = [option for option in puzzle.options if not option.is_correct]
+    assert distractors
+
+    assert any(
+        sum(
+            [
+                option.figure.shape != puzzle.solution.shape,
+                option.figure.rotation != puzzle.solution.rotation,
+                option.figure.size != puzzle.solution.size,
+                option.figure.color != puzzle.solution.color,
+            ]
+        ) == 1
+        for option in distractors
+    )

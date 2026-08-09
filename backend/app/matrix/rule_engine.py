@@ -8,6 +8,7 @@ from dataclasses import replace
 from itertools import combinations, permutations
 from typing import Iterable
 
+from .answer_options import AnswerOptionEngine
 from .explainer import explain_puzzle
 from .models import Figure, MatrixPuzzle, Rule, SkillProfile
 from .rules import BaseRule, MISSING_COL, MISSING_ROW, RuleType
@@ -28,6 +29,7 @@ class RuleConstraintEngine:
         self.sample_seeds = sample_seeds
         self.validation_reasons: list[str] = []
         self.validated_rules: list[BaseRule] = []
+        self.answer_option_engine = AnswerOptionEngine()
 
     def validate_rules(self, rules: list[BaseRule]) -> bool:
         self.validation_reasons = []
@@ -94,7 +96,8 @@ class RuleConstraintEngine:
 
     def _check_ambiguous_answer(self, composite: CompositeRule, puzzle: MatrixPuzzle) -> str | None:
         missing_row, missing_col = 2, 2
-        for distractor in puzzle.distractors:
+        _, _, distractors = self.answer_option_engine.build(puzzle)
+        for distractor in distractors:
             grid = [list(row) for row in puzzle.grid]
             grid[missing_row][missing_col] = distractor.figure
             if composite.validate(tuple(tuple(row) for row in grid)):
@@ -225,6 +228,7 @@ class MatrixGenerator:
             self.registry = None
             self.rule = rule_or_registry
         self.constraint_engine = RuleConstraintEngine()
+        self.answer_option_engine = AnswerOptionEngine()
 
     def generate(self, seed: int) -> MatrixPuzzle:
         if self.rule is not None:
@@ -260,12 +264,19 @@ class MatrixGenerator:
     def _finalize_puzzle(self, puzzle: MatrixPuzzle) -> MatrixPuzzle:
         difficulty = DifficultyEngine.score(puzzle)
         explanation = explain_puzzle(puzzle)
-
-        return replace(
+        base_puzzle = replace(
             puzzle,
             missing_position=(MISSING_ROW, MISSING_COL),
             difficulty=difficulty,
             explanation=explanation,
+        )
+        options, correct_index, distractors = self.answer_option_engine.build(base_puzzle)
+
+        return replace(
+            base_puzzle,
+            distractors=distractors,
+            options=options,
+            correct_index=correct_index,
         )
 
 

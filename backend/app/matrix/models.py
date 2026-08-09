@@ -85,6 +85,20 @@ class Distractor:
     reason: DistractorReason
     explanation: str
     origin_rule: RuleType
+    difficulty: float = 0.0
+
+
+@dataclass(frozen=True)
+class AnswerOption:
+    """A labeled answer option for a generated matrix puzzle."""
+
+    label: str
+    figure: Figure
+    is_correct: bool
+    reason: DistractorReason | None = None
+    explanation: str = ""
+    origin_rule: RuleType | None = None
+    difficulty: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -110,6 +124,8 @@ class MatrixPuzzle:
     missing_position: tuple[int, int] = (2, 2)
     difficulty: float = 0.0
     explanation: str = ""
+    options: tuple[AnswerOption, ...] = ()
+    correct_index: int = 0
 
     @property
     def solution(self) -> Figure:

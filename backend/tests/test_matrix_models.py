@@ -1,6 +1,6 @@
 """Unit tests for the Cognera matrix engine foundation."""
 
-from backend.app.matrix.models import CognitiveSkill, MatrixPuzzle, Rule, RuleType, SkillProfile
+from backend.app.matrix.models import AnswerOption, CognitiveSkill, MatrixPuzzle, Rule, RuleType, SkillProfile
 
 
 def test_rule_type_enum_contains_expected_values() -> None:
@@ -50,3 +50,12 @@ def test_matrix_puzzle_dataclass_fields_are_assigned() -> None:
     assert puzzle.correct_answer == "A"
     assert puzzle.distractors == distractors
     assert puzzle.skill_profile == skill_profile
+
+
+def test_answer_option_dataclass_fields_are_assigned() -> None:
+    option = AnswerOption(label="A", figure="figure", is_correct=True, difficulty=0.5)
+
+    assert option.label == "A"
+    assert option.figure == "figure"
+    assert option.is_correct is True
+    assert option.difficulty == 0.5
