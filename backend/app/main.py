@@ -124,4 +124,5 @@ async def matrix_demo() -> dict:
         "options": options,
         "correct": 1,
         "explanation": explanation_text,
+        "skills": puzzle.skill_profile.as_dict(),
     }

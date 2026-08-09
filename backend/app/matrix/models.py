@@ -18,6 +18,28 @@ class RuleType(str, Enum):
     COLOR = "color"
 
 
+class CognitiveSkill(str, Enum):
+    """Cognitive skill categories associated with each puzzle."""
+
+    VISUAL_PATTERN_RECOGNITION = "VISUAL_PATTERN_RECOGNITION"
+    MENTAL_ROTATION = "MENTAL_ROTATION"
+    WORKING_MEMORY = "WORKING_MEMORY"
+    ATTENTION = "ATTENTION"
+    PROCESSING_SPEED = "PROCESSING_SPEED"
+    ABSTRACT_REASONING = "ABSTRACT_REASONING"
+    EXECUTIVE_FUNCTION = "EXECUTIVE_FUNCTION"
+
+
+@dataclass(frozen=True)
+class SkillProfile:
+    """Quantified cognitive skill profile for a generated puzzle."""
+
+    skills: dict[CognitiveSkill, float]
+
+    def as_dict(self) -> dict[str, float]:
+        return {skill.value: value for skill, value in self.skills.items()}
+
+
 @dataclass(frozen=True)
 class Rule:
     """A reasoning rule used to generate or explain a matrix puzzle."""
@@ -46,3 +68,4 @@ class MatrixPuzzle:
     grid: tuple[tuple[Figure | None, ...], ...]
     correct_answer: Figure
     distractors: tuple[Figure, ...]
+    skill_profile: SkillProfile

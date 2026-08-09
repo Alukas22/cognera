@@ -1,6 +1,6 @@
 """Unit tests for the Cognera matrix engine foundation."""
 
-from backend.app.matrix.models import MatrixPuzzle, Rule, RuleType
+from backend.app.matrix.models import CognitiveSkill, MatrixPuzzle, Rule, RuleType, SkillProfile
 
 
 def test_rule_type_enum_contains_expected_values() -> None:
@@ -24,12 +24,24 @@ def test_matrix_puzzle_dataclass_fields_are_assigned() -> None:
     rule = Rule(type=RuleType.COUNT, value=3, difficulty=1.0)
     grid = (("A", "B", "C"), ("D", "A", "B"), ("C", "D", "A"))
     distractors = ("B", "C", "D", "A", "B")
+    skill_profile = SkillProfile(
+        skills={
+            CognitiveSkill.MENTAL_ROTATION: 0.0,
+            CognitiveSkill.VISUAL_PATTERN_RECOGNITION: 0.0,
+            CognitiveSkill.WORKING_MEMORY: 0.0,
+            CognitiveSkill.ATTENTION: 0.0,
+            CognitiveSkill.PROCESSING_SPEED: 0.0,
+            CognitiveSkill.ABSTRACT_REASONING: 0.0,
+            CognitiveSkill.EXECUTIVE_FUNCTION: 0.0,
+        }
+    )
     puzzle = MatrixPuzzle(
         seed=42,
         rules=(rule,),
         grid=grid,
         correct_answer="A",
         distractors=distractors,
+        skill_profile=skill_profile,
     )
 
     assert puzzle.seed == 42
@@ -37,3 +49,4 @@ def test_matrix_puzzle_dataclass_fields_are_assigned() -> None:
     assert puzzle.grid == grid
     assert puzzle.correct_answer == "A"
     assert puzzle.distractors == distractors
+    assert puzzle.skill_profile == skill_profile

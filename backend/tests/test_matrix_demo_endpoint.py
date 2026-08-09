@@ -20,6 +20,9 @@ def test_matrix_demo_endpoint_returns_playable_puzzle() -> None:
     assert isinstance(payload["correct"], int)
     assert payload["correct"] == 1
     assert "explanation" in payload
+    assert "skills" in payload
+    assert payload["skills"]["MENTAL_ROTATION"] == 0.95
+    assert payload["skills"]["VISUAL_PATTERN_RECOGNITION"] == 0.8
 
 
 def test_matrix_demo_endpoint_is_deterministic() -> None:
