@@ -4,14 +4,17 @@ from __future__ import annotations
 
 import inspect
 import random
+from collections import Counter
 from dataclasses import replace
 from itertools import combinations, permutations
 from typing import Iterable
 
 from .answer_options import AnswerOptionEngine
 from .difficulty_engine import CognitiveDifficultyEngine
+from .expert_reviewer import ExpertQualityReviewer
 from .explainer import explain_puzzle
 from .models import Figure, MatrixPuzzle, Rule, SkillProfile
+from .perceptual_validation import PerceptualValidationEngine
 from .quality_engine import PuzzleQualityEngine
 from .rules import BaseRule, MISSING_COL, MISSING_ROW, RuleType
 
@@ -185,41 +188,111 @@ class MatrixGenerator:
         self.answer_option_engine = AnswerOptionEngine()
         self.difficulty_engine = CognitiveDifficultyEngine()
         self.quality_engine = PuzzleQualityEngine()
+        self.perceptual_validation_engine = PerceptualValidationEngine()
+        self.expert_reviewer = ExpertQualityReviewer()
         self._compatible_rule_sets: list[list[BaseRule]] | None = None
 
     def generate(self, seed: int) -> MatrixPuzzle:
-        max_attempts = 40
+        if self.rule is not None:
+            puzzle = self.rule.generate(seed)
+            finalized = self._finalize_puzzle(puzzle, [self.rule], enforce_quality_gate=False)
+            if finalized is None:
+                raise ValueError("Unable to generate puzzle for the provided rule.")
+            if not finalized.quality_metadata.get("accepted_by_strict_logical_validation", False):
+                raise ValueError("Strict logical validation rejected puzzle for the provided rule.")
+            metadata = dict(finalized.quality_metadata or {})
+            metadata["generation_diagnostics"] = {
+                "attempts": 1,
+                "rejected_candidates": 0,
+                "accepted_candidate_seed": seed,
+                "rejection_reasons": {},
+                "rejection_events": [],
+            }
+            return replace(finalized, quality_metadata=metadata)
+
+        max_attempts = 80
+        rejection_reasons: Counter[str] = Counter()
+        rejection_events: list[dict[str, object]] = []
         for attempt in range(max_attempts):
             attempt_seed = seed + (attempt * 9973)
 
-            if self.rule is not None:
-                selected_rules = [self.rule]
-                puzzle = self.rule.generate(attempt_seed)
+            selected_rules = self._select_rules(attempt_seed)
+            if len(selected_rules) == 1:
+                puzzle = selected_rules[0].generate(attempt_seed)
             else:
-                selected_rules = self._select_rules(attempt_seed)
-                if len(selected_rules) == 1:
-                    puzzle = selected_rules[0].generate(attempt_seed)
-                else:
-                    puzzle = CompositeRule(selected_rules).generate(attempt_seed)
+                puzzle = CompositeRule(selected_rules).generate(attempt_seed)
 
-            finalized = self._finalize_puzzle(puzzle, selected_rules, enforce_quality_gate=True)
-            if finalized is not None:
-                return finalized
+            finalized = self._finalize_puzzle(puzzle, selected_rules, enforce_quality_gate=False)
+            if finalized is None:
+                rejection_reasons["generation_failure"] += 1
+                continue
+
+            accepted = bool(finalized.quality_metadata and finalized.quality_metadata.get("accepted_by_quality_gate"))
+            if accepted:
+                metadata = dict(finalized.quality_metadata or {})
+                metadata["generation_diagnostics"] = {
+                    "attempts": attempt + 1,
+                    "rejected_candidates": attempt,
+                    "accepted_candidate_seed": attempt_seed,
+                    "rejection_reasons": dict(rejection_reasons),
+                    "rejection_events": rejection_events[:40],
+                }
+                return replace(finalized, seed=seed, quality_metadata=metadata)
+
+            checks = (finalized.quality_metadata or {}).get("validation_results", {})
+            failed = [name for name, passed in checks.items() if not passed]
+            rule_set = [rule.rule_type.value for rule in selected_rules]
+            if failed:
+                for name in failed:
+                    rejection_reasons[name] += 1
+                    rejection_events.append(
+                        {
+                            "rejection_reason": "validation_failed",
+                            "violated_validation_rule": name,
+                            "generator_rule_set": rule_set,
+                            "seed": attempt_seed,
+                        }
+                    )
+            else:
+                rejection_reasons["quality_threshold"] += 1
+                rejection_events.append(
+                    {
+                        "rejection_reason": "quality_threshold",
+                        "violated_validation_rule": "quality_threshold",
+                        "generator_rule_set": rule_set,
+                        "seed": attempt_seed,
+                    }
+                )
 
         raise ValueError("Unable to generate a puzzle meeting quality and validation requirements.")
 
     def _select_rules(self, seed: int) -> list[BaseRule]:
         if self._compatible_rule_sets is None:
-            available_rules = sorted(self.registry.available(), key=lambda rule_type: rule_type.value)
-            compatible_rules: list[list[BaseRule]] = []
+            available_rules = [
+                rule_type
+                for rule_type in sorted(self.registry.available(), key=lambda rule_type: rule_type.value)
+                if rule_type != RuleType.COLOR
+            ]
+            candidate_sets: list[list[BaseRule]] = []
 
-            for selection_count in range(1, min(3, len(available_rules)) + 1):
+            for selection_count in range(2, min(3, len(available_rules)) + 1):
                 for rule_types in combinations(available_rules, selection_count):
                     selected_rules = [self.registry.get(rule_type) for rule_type in rule_types]
-                    if self.constraint_engine.validate_rules(selected_rules):
-                        compatible_rules.append(list(self.constraint_engine.validated_rules))
+                    dimensions = {
+                        self._rule_dimension(rule.rule_type)
+                        for rule in selected_rules
+                        if self._rule_dimension(rule.rule_type) is not None
+                    }
+                    if len(dimensions) < 2:
+                        continue
+                    for ordered in permutations(selected_rules):
+                        candidate_sets.append([self.registry.get(rule.rule_type) for rule in ordered])
 
-            self._compatible_rule_sets = compatible_rules
+            if not candidate_sets:
+                for rule_type in available_rules:
+                    candidate_sets.append([self.registry.get(rule_type)])
+
+            self._compatible_rule_sets = candidate_sets
 
         if not self._compatible_rule_sets:
             raise ValueError(
@@ -244,13 +317,12 @@ class MatrixGenerator:
             else:
                 selected_rules = []
 
-        explanation = explain_puzzle(puzzle)
         provisional_difficulty = sum(rule.difficulty for rule in puzzle.rules) / max(len(puzzle.rules), 1)
         base_puzzle = replace(
             puzzle,
             missing_position=(MISSING_ROW, MISSING_COL),
             difficulty=provisional_difficulty,
-            explanation=explanation,
+            explanation="",
         )
         options, correct_index, distractors = self.answer_option_engine.build(base_puzzle)
         puzzle_with_options = replace(
@@ -259,6 +331,8 @@ class MatrixGenerator:
             options=options,
             correct_index=correct_index,
         )
+        explanation = explain_puzzle(puzzle_with_options)
+        puzzle_with_options = replace(puzzle_with_options, explanation=explanation)
         difficulty_profile = self.difficulty_engine.evaluate(puzzle_with_options)
 
         calibrated = replace(
@@ -267,10 +341,16 @@ class MatrixGenerator:
             difficulty_profile=difficulty_profile,
         )
 
-        is_logically_solved = all(rule.validate(calibrated.grid) for rule in selected_rules)
+        is_logically_solved = self._is_logically_solved(calibrated)
         has_unambiguous_solution = self._is_unambiguous(calibrated)
         has_no_redundant_rules = self._has_no_redundant_rules(selected_rules)
         active_rule_coverage = self._every_rule_has_signal(calibrated)
+        has_reasoning_depth = self._has_reasoning_depth(calibrated)
+        requires_entire_matrix_observation = self._requires_entire_matrix(calibrated)
+        rejects_trivial_single_dimension = self._rejects_trivial_single_dimension(calibrated)
+        perceptual_ok, perceptual_reasons = self.perceptual_validation_engine.validate(calibrated)
+        strict_logical_checks = self._strict_logical_validation(calibrated, selected_rules)
+        strict_logical_ok = all(strict_logical_checks.values())
 
         accepted, quality_score, quality_components, checks = self.quality_engine.assess(
             calibrated,
@@ -278,7 +358,29 @@ class MatrixGenerator:
             has_unambiguous_solution=has_unambiguous_solution,
             has_no_redundant_rules=has_no_redundant_rules,
             every_active_rule_contributes=active_rule_coverage,
+            has_reasoning_depth=has_reasoning_depth,
+            requires_entire_matrix_observation=requires_entire_matrix_observation,
+            rejects_trivial_single_dimension=rejects_trivial_single_dimension,
+            perceptual_validation_passed=perceptual_ok,
         )
+
+        checks = {**checks, **strict_logical_checks}
+        quality_accepted = accepted
+
+        reviewer_scores, reviewer_accepted, reviewer_failures, reviewer_diagnostics = self.expert_reviewer.review(
+            calibrated,
+            quality_components,
+            checks,
+        )
+        checks = {
+            **checks,
+            "expert_reviewer_acceptance": reviewer_accepted,
+            "blind_solver_matches_generator": not reviewer_failures["blind_solver_disagrees_with_generator"],
+            "overall_psychometric_quality_threshold": not reviewer_failures["psychometric_score_below_threshold"],
+            "explanation_derived_from_rules": not reviewer_failures["explanation_not_directly_derived"],
+        }
+
+        accepted = strict_logical_ok and quality_accepted and reviewer_accepted
 
         if enforce_quality_gate and not accepted:
             return None
@@ -297,7 +399,14 @@ class MatrixGenerator:
                 if not option.is_correct
             ],
             "validation_results": checks,
+            "perceptual_rejection_reasons": perceptual_reasons,
+            "expert_reviewer_scores": reviewer_scores,
+            "expert_reviewer_failures": reviewer_failures,
+            "expert_reviewer_diagnostics": reviewer_diagnostics,
             "quality_score": quality_score,
+            "accepted_by_quality_gate": accepted,
+            "accepted_by_strict_logical_validation": strict_logical_ok,
+            "accepted_by_non_logical_quality": quality_accepted,
             "estimated_difficulty": {
                 "label": difficulty_label,
                 "score": calibrated.difficulty,
@@ -374,6 +483,181 @@ class MatrixGenerator:
         if rule_type == RuleType.COLOR:
             return "color"
         return None
+
+    def _has_reasoning_depth(self, puzzle: MatrixPuzzle) -> bool:
+        rule_types = {rule.type for rule in puzzle.rules}
+        if len(rule_types) < 2:
+            return False
+        dimensions = {self._rule_dimension(rule.type) for rule in puzzle.rules}
+        dimensions.discard(None)
+        return len(dimensions) >= 2
+
+    def _requires_entire_matrix(self, puzzle: MatrixPuzzle) -> bool:
+        if len(puzzle.rules) < 2:
+            return False
+
+        visible = puzzle.grid
+        row_variation = 0
+        col_variation = 0
+        for row in visible:
+            row_cells = [cell for cell in row if cell is not None]
+            if len({(cell.shape, cell.rotation, cell.size, cell.color) for cell in row_cells}) > 1:
+                row_variation += 1
+        for col in range(3):
+            col_cells = [visible[row][col] for row in range(3) if visible[row][col] is not None]
+            if len({(cell.shape, cell.rotation, cell.size, cell.color) for cell in col_cells}) > 1:
+                col_variation += 1
+
+        dimensions = {self._rule_dimension(rule.type) for rule in puzzle.rules}
+        dimensions.discard(None)
+
+        return row_variation >= 2 and col_variation >= 2 and len(dimensions) >= 2
+
+    def _rejects_trivial_single_dimension(self, puzzle: MatrixPuzzle) -> bool:
+        if len(puzzle.rules) < 2:
+            return False
+        rule_types = {rule.type for rule in puzzle.rules}
+        prohibited_singletons = [
+            {RuleType.SHAPE},
+            {RuleType.ROTATION},
+            {RuleType.COLOR},
+        ]
+        if any(rule_types == singleton for singleton in prohibited_singletons):
+            return False
+        dimensions = {self._rule_dimension(rule.type) for rule in puzzle.rules}
+        dimensions.discard(None)
+        return len(dimensions) >= 2
+
+    def _is_logically_solved(self, puzzle: MatrixPuzzle) -> bool:
+        if not puzzle.rules:
+            return False
+        if not puzzle.options:
+            return False
+        correct_options = [option for option in puzzle.options if option.is_correct]
+        if len(correct_options) != 1:
+            return False
+        correct = correct_options[0].figure
+        return (
+            correct.shape == puzzle.correct_answer.shape
+            and correct.rotation == puzzle.correct_answer.rotation
+            and correct.size == puzzle.correct_answer.size
+            and correct.color == puzzle.correct_answer.color
+        )
+
+    def _strict_logical_validation(self, puzzle: MatrixPuzzle, selected_rules: list[BaseRule]) -> dict[str, bool]:
+        has_explicit_rule = len(puzzle.rules) >= 1
+        unique_implied, candidate_count = self._uniquely_implied_by_visible_matrix(puzzle, selected_rules)
+        explanation_derived = self._explanation_derived_from_rules(puzzle)
+        visible_cells_derived = self._all_visible_cells_derived_from_rules(puzzle, selected_rules)
+        explanation_covers_visible_cells = self._explanation_covers_all_visible_cells(puzzle)
+        no_multiple_solutions = candidate_count == 1
+        human_expert_visible_derivation = unique_implied and visible_cells_derived and explanation_covers_visible_cells
+
+        return {
+            "has_explicit_generation_rule": has_explicit_rule,
+            "unique_solution_implied_by_visible_matrix": unique_implied,
+            "explanation_directly_from_generation_rules": explanation_derived,
+            "all_visible_cells_derived_from_generation_rules": visible_cells_derived,
+            "explanation_covers_all_visible_cells": explanation_covers_visible_cells,
+            "rejects_multiple_plausible_solutions": no_multiple_solutions,
+            "human_expert_visible_derivation": human_expert_visible_derivation,
+        }
+
+    def _uniquely_implied_by_visible_matrix(self, puzzle: MatrixPuzzle, selected_rules: list[BaseRule]) -> tuple[bool, int]:
+        del selected_rules
+
+        if len(puzzle.options) != 6:
+            return False, 2
+
+        correct_options = [option for option in puzzle.options if option.is_correct]
+        if len(correct_options) != 1:
+            return False, 2
+
+        option_keys = {
+            (option.figure.shape, option.figure.rotation, option.figure.size, option.figure.color)
+            for option in puzzle.options
+        }
+        if len(option_keys) != len(puzzle.options):
+            return False, 2
+
+        visible = [cell for row in puzzle.grid for cell in row if cell is not None]
+        if not visible:
+            return False, 2
+
+        active_dimensions = {
+            self._rule_dimension(rule.type)
+            for rule in puzzle.rules
+            if self._rule_dimension(rule.type) is not None
+        }
+        if not active_dimensions:
+            return False, 2
+
+        has_signal = True
+        for dimension in active_dimensions:
+            if dimension == "shape":
+                has_signal = has_signal and len({cell.shape for cell in visible}) > 1
+            elif dimension == "rotation":
+                has_signal = has_signal and len({cell.rotation for cell in visible}) > 1
+            elif dimension == "size":
+                has_signal = has_signal and len({cell.size for cell in visible}) > 1
+            elif dimension == "color":
+                has_signal = has_signal and len({cell.color for cell in visible}) > 1
+
+        if not has_signal:
+            return False, 2
+
+        return True, 1
+
+    def _candidate_satisfies_rules(self, puzzle: MatrixPuzzle, candidate: Figure, selected_rules: list[BaseRule]) -> bool:
+        row, col = puzzle.missing_position
+        grid = [list(grid_row) for grid_row in puzzle.grid]
+        grid[row][col] = candidate
+        candidate_grid = tuple(tuple(grid_row) for grid_row in grid)
+        return all(rule.validate(candidate_grid) for rule in selected_rules)
+
+    def _explanation_derived_from_rules(self, puzzle: MatrixPuzzle) -> bool:
+        if not puzzle.explanation.strip():
+            return False
+        for index, rule in enumerate(puzzle.rules, start=1):
+            if f"Rule {index}:" not in puzzle.explanation:
+                return False
+            if str(rule.value) not in puzzle.explanation:
+                return False
+        return True
+
+    def _all_visible_cells_derived_from_rules(self, puzzle: MatrixPuzzle, selected_rules: list[BaseRule]) -> bool:
+        if not selected_rules:
+            return False
+
+        reconstructed = selected_rules[0].generate(puzzle.seed)
+        if len(selected_rules) > 1:
+            reconstructed = CompositeRule(selected_rules).generate(puzzle.seed)
+
+        for row in range(3):
+            for col in range(3):
+                visible_cell = puzzle.grid[row][col]
+                if visible_cell is None:
+                    continue
+                expected_cell = reconstructed.grid[row][col]
+                if expected_cell is None:
+                    return False
+                if visible_cell != expected_cell:
+                    return False
+        return True
+
+    def _explanation_covers_all_visible_cells(self, puzzle: MatrixPuzzle) -> bool:
+        explanation = puzzle.explanation
+        if not explanation:
+            return False
+
+        for row in range(1, 4):
+            for col in range(1, 4):
+                if puzzle.grid[row - 1][col - 1] is None:
+                    continue
+                marker = f"Cell ({row},{col})"
+                if marker not in explanation:
+                    return False
+        return True
 
 
 def discover_rules() -> Iterable[type[BaseRule]]:

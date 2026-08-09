@@ -21,6 +21,16 @@ def _rule_explanation(index: int, rule_type: RuleType, value: str) -> str:
     return f"Rule {index}: {label.capitalize()} rule -> {value}."
 
 
+def _option_explanations(puzzle: MatrixPuzzle) -> list[str]:
+    lines: list[str] = []
+    for option in puzzle.options:
+        if option.is_correct:
+            continue
+        reason = option.explanation or "it violates at least one active rule."
+        lines.append(f"Option {option.label} is incorrect because {reason}")
+    return lines
+
+
 def explain_puzzle(puzzle: MatrixPuzzle) -> str:
     """Produce a plain-English explanation for the generated puzzle."""
 
@@ -34,4 +44,20 @@ def explain_puzzle(puzzle: MatrixPuzzle) -> str:
         f"rotated to {puzzle.correct_answer.rotation} degrees."
     )
 
-    return "\n".join([*rule_lines, figure_summary])
+    lines = [*rule_lines, figure_summary]
+    lines.append("Visible cell derivation:")
+    for row_index, row in enumerate(puzzle.grid, start=1):
+        for col_index, cell in enumerate(row, start=1):
+            if cell is None:
+                continue
+            lines.append(
+                f"Cell ({row_index},{col_index}) is a {cell.size} {cell.color} {cell.shape} "
+                f"at {cell.rotation} degrees under the active rules."
+            )
+
+    option_lines = _option_explanations(puzzle)
+    if option_lines:
+        lines.append("Incorrect options:")
+        lines.extend(option_lines)
+
+    return "\n".join(lines)

@@ -1,8 +1,12 @@
 """Unit tests for the Cognera plugin rule engine."""
 
+from dataclasses import replace
+
 from backend.app.matrix import MatrixGenerator, RuleRegistry, RuleType
+from backend.app.matrix.models import Figure, MatrixPuzzle, Rule, SkillProfile, CognitiveSkill
 from backend.app.matrix.rule_engine import CompositeRule
 from backend.app.matrix.rules import BaseRule, RotationRule
+import pytest
 
 
 def test_rotation_rule_is_subclass_of_base_rule() -> None:
@@ -51,7 +55,7 @@ def test_matrix_generator_composes_multiple_rules() -> None:
     registry = RuleRegistry()
     puzzle = MatrixGenerator(registry).generate(seed=2024)
 
-    assert 1 <= len(puzzle.rules) <= 3
+    assert 2 <= len(puzzle.rules) <= 3
     assert puzzle.skill_profile is not None
     assert len(puzzle.skill_profile.skills) >= 1
     assert puzzle.correct_answer is not None
@@ -64,6 +68,17 @@ def test_matrix_generator_composes_multiple_rules() -> None:
     assert all(cell is None or isinstance(cell, type(puzzle.correct_answer)) for row in puzzle.grid for cell in row)
     assert puzzle.quality_metadata is not None
     assert puzzle.quality_score >= 0.62
+
+
+def test_matrix_generator_explanation_covers_incorrect_options() -> None:
+    registry = RuleRegistry()
+    puzzle = MatrixGenerator(registry).generate(seed=2024)
+
+    assert "Incorrect options:" in puzzle.explanation
+    for option in puzzle.options:
+        if option.is_correct:
+            continue
+        assert f"Option {option.label}" in puzzle.explanation
 
 
 def test_composite_generation_is_deterministic() -> None:
@@ -232,13 +247,18 @@ def test_matrix_generator_validation_results_are_all_true() -> None:
     assert puzzle.quality_metadata is not None
     results = puzzle.quality_metadata["validation_results"]
     assert all(results.values())
+    assert results["minimum_reasoning_depth"] is True
+    assert results["requires_entire_matrix_observation"] is True
+    assert results["rejects_trivial_single_dimension"] is True
 
 
 def test_matrix_generator_solution_matches_rule_engine() -> None:
     registry = RuleRegistry()
     puzzle = MatrixGenerator(registry).generate(seed=2024)
     rules = [registry.get(rule.type) for rule in puzzle.rules]
-    expected = CompositeRule(rules).generate(seed=2024)
+    diagnostics = puzzle.quality_metadata["generation_diagnostics"]
+    candidate_seed = diagnostics.get("accepted_candidate_seed", puzzle.seed)
+    expected = CompositeRule(rules).generate(seed=candidate_seed)
 
     assert puzzle.grid == expected.grid
     assert puzzle.solution == expected.correct_answer
@@ -266,3 +286,93 @@ def test_composite_rule_distractors_preserve_other_dimensions_when_possible() ->
         ) == 1
         for option in distractors
     )
+
+
+def test_matrix_generator_rejects_ambiguous_rule_puzzles() -> None:
+    class AmbiguousRule(BaseRule):
+        _register = False
+        rule_type = RuleType.SHAPE
+
+        def generate(self, seed: int) -> MatrixPuzzle:
+            del seed
+            grid = (
+                (Figure("circle", 0, "small", "red"), Figure("circle", 0, "small", "red"), Figure("circle", 0, "small", "red")),
+                (Figure("circle", 0, "small", "red"), Figure("circle", 0, "small", "red"), Figure("circle", 0, "small", "red")),
+                (Figure("circle", 0, "small", "red"), Figure("circle", 0, "small", "red"), None),
+            )
+            return MatrixPuzzle(
+                seed=1,
+                rules=(Rule(type=RuleType.SHAPE, value="Ambiguous test rule", difficulty=0.1),),
+                grid=grid,
+                correct_answer=Figure("circle", 0, "small", "red"),
+                distractors=(),
+                skill_profile=SkillProfile(
+                    skills={
+                        CognitiveSkill.MENTAL_ROTATION: 0.1,
+                        CognitiveSkill.VISUAL_PATTERN_RECOGNITION: 0.1,
+                        CognitiveSkill.WORKING_MEMORY: 0.1,
+                        CognitiveSkill.ATTENTION: 0.1,
+                        CognitiveSkill.PROCESSING_SPEED: 0.1,
+                        CognitiveSkill.ABSTRACT_REASONING: 0.1,
+                        CognitiveSkill.EXECUTIVE_FUNCTION: 0.1,
+                    }
+                ),
+            )
+
+        def validate(self, grid):
+            del grid
+            return True
+
+        def explain(self) -> str:
+            return "Ambiguous rule for testing."
+
+        def difficulty(self) -> float:
+            return 0.1
+
+        def overlay(self, puzzle: MatrixPuzzle, seed: int) -> MatrixPuzzle:
+            del seed
+            return puzzle
+
+    with pytest.raises(ValueError, match="Strict logical validation"):
+        MatrixGenerator(AmbiguousRule()).generate(seed=99)
+
+
+def test_explanation_rejected_if_only_final_cell_is_explained() -> None:
+    registry = RuleRegistry()
+    generator = MatrixGenerator(registry)
+    puzzle = generator.generate(seed=2024)
+
+    shortened = replace(
+        puzzle,
+        explanation=(
+            "Rule 1: Rotation rule -> 90° clockwise.\n"
+            "Therefore, the missing figure is explained."
+        ),
+    )
+
+    assert generator._explanation_covers_all_visible_cells(shortened) is False
+
+
+def test_visible_cells_must_match_rule_reconstruction() -> None:
+    registry = RuleRegistry()
+    generator = MatrixGenerator(registry)
+    puzzle = generator.generate(seed=2024)
+    selected_rules = [registry.get(rule.type) for rule in puzzle.rules]
+
+    mutated_grid = [list(row) for row in puzzle.grid]
+    for row in range(3):
+        for col in range(3):
+            cell = mutated_grid[row][col]
+            if cell is not None:
+                mutated_grid[row][col] = replace(cell, rotation=(cell.rotation + 90) % 360)
+                break
+        else:
+            continue
+        break
+
+    mutated = replace(
+        puzzle,
+        grid=tuple(tuple(cell for cell in row) for row in mutated_grid),
+    )
+
+    assert generator._all_visible_cells_derived_from_rules(mutated, selected_rules) is False
