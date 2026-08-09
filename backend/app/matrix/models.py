@@ -107,3 +107,10 @@ class MatrixPuzzle:
     correct_answer: Figure
     distractors: tuple[Distractor, ...]
     skill_profile: SkillProfile
+    missing_position: tuple[int, int] = (2, 2)
+    difficulty: float = 0.0
+    explanation: str = ""
+
+    @property
+    def solution(self) -> Figure:
+        return self.correct_answer

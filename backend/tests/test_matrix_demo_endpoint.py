@@ -31,3 +31,39 @@ def test_matrix_demo_endpoint_is_deterministic() -> None:
     second = client.get("/matrix/demo").json()
 
     assert first == second
+
+
+def test_matrix_generate_endpoint_returns_http_200() -> None:
+    client = TestClient(app)
+    response = client.post("/matrix/generate", json={"seed": 12345})
+
+    assert response.status_code == 200
+
+
+def test_matrix_generate_endpoint_returns_expected_schema() -> None:
+    client = TestClient(app)
+    response = client.post("/matrix/generate", json={"seed": 12345})
+
+    assert response.status_code == 200
+    payload = response.json()
+
+    assert payload["seed"] == 12345
+    assert len(payload["grid"]) == 3
+    assert all(len(row) == 3 for row in payload["grid"])
+    assert payload["grid"][2][2] is None
+    assert payload["missing_position"] == [2, 2]
+    assert set(payload["solution"]) == {"shape", "rotation", "size", "color"}
+    assert 1 <= len(payload["rules"]) <= 3
+    assert all(set(rule) == {"type", "value", "difficulty"} for rule in payload["rules"])
+    assert isinstance(payload["difficulty"], float)
+    assert 0.0 <= payload["difficulty"] <= 1.0
+    assert isinstance(payload["explanation"], str)
+    assert payload["explanation"]
+
+
+def test_matrix_generate_endpoint_is_deterministic_for_same_seed() -> None:
+    client = TestClient(app)
+    first = client.post("/matrix/generate", json={"seed": 12345}).json()
+    second = client.post("/matrix/generate", json={"seed": 12345}).json()
+
+    assert first == second

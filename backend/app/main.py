@@ -6,6 +6,7 @@ from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 from .config import AppConfig
 from .database import prepare_database_connection
@@ -39,6 +40,10 @@ class StructuredJsonFormatter(logging.Formatter):
 
 handler.setFormatter(StructuredJsonFormatter())
 logger.addHandler(handler)
+
+
+class MatrixGenerateRequest(BaseModel):
+    seed: int | None = None
 
 app = FastAPI(title=config.app_name, debug=config.debug, version=config.version)
 app.add_middleware(
@@ -112,6 +117,26 @@ def _serialize_distractor(distractor):
     }
 
 
+def _serialize_rule(rule):
+    return {
+        "type": rule.type.value,
+        "value": rule.value,
+        "difficulty": rule.difficulty,
+    }
+
+
+def _serialize_puzzle(puzzle):
+    return {
+        "seed": puzzle.seed,
+        "grid": [[_serialize_figure(cell) for cell in row] for row in puzzle.grid],
+        "missing_position": list(puzzle.missing_position),
+        "solution": _serialize_figure(puzzle.solution),
+        "rules": [_serialize_rule(rule) for rule in puzzle.rules],
+        "difficulty": puzzle.difficulty,
+        "explanation": puzzle.explanation,
+    }
+
+
 @app.get("/matrix/demo")
 async def matrix_demo() -> dict:
     logger.info("endpoint.matrix_demo", extra={"path": "/matrix/demo"})
@@ -139,3 +164,12 @@ async def matrix_demo() -> dict:
         "skills": puzzle.skill_profile.as_dict(),
         "difficulty": DifficultyEngine.score(puzzle),
     }
+
+
+@app.post("/matrix/generate")
+async def matrix_generate(request: MatrixGenerateRequest | None = None) -> dict:
+    logger.info("endpoint.matrix_generate", extra={"path": "/matrix/generate"})
+
+    seed = request.seed if request is not None and request.seed is not None else uuid.uuid4().int % (2 ** 31)
+    puzzle = MatrixGenerator(RuleRegistry()).generate(seed=seed)
+    return _serialize_puzzle(puzzle)

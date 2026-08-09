@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import inspect
 import random
+from dataclasses import replace
 from itertools import combinations, permutations
 from typing import Iterable
 
+from .explainer import explain_puzzle
 from .models import Figure, MatrixPuzzle, Rule, SkillProfile
 from .rules import BaseRule, MISSING_COL, MISSING_ROW, RuleType
 
@@ -213,7 +215,7 @@ class CompositeRule(BaseRule):
 
 
 class MatrixGenerator:
-    """Generator that delegates puzzle creation to a rule plugin."""
+    """Production-ready generator for deterministic matrix puzzles."""
 
     def __init__(self, rule_or_registry: BaseRule | RuleRegistry) -> None:
         if isinstance(rule_or_registry, RuleRegistry):
@@ -226,20 +228,44 @@ class MatrixGenerator:
 
     def generate(self, seed: int) -> MatrixPuzzle:
         if self.rule is not None:
-            return self.rule.generate(seed)
+            puzzle = self.rule.generate(seed)
+            return self._finalize_puzzle(puzzle)
 
+        selected_rules = self._select_rules(seed)
+        if len(selected_rules) == 1:
+            puzzle = selected_rules[0].generate(seed)
+        else:
+            puzzle = CompositeRule(selected_rules).generate(seed)
+
+        return self._finalize_puzzle(puzzle)
+
+    def _select_rules(self, seed: int) -> list[BaseRule]:
         available_rules = sorted(self.registry.available(), key=lambda rule_type: rule_type.value)
-        rng = random.Random(seed)
+        compatible_rules: list[list[BaseRule]] = []
 
-        for selection_count in range(2, min(4, len(available_rules)) + 1):
+        for selection_count in range(1, min(3, len(available_rules)) + 1):
             for rule_types in combinations(available_rules, selection_count):
                 selected_rules = [self.registry.get(rule_type) for rule_type in rule_types]
                 if self.constraint_engine.validate_rules(selected_rules):
-                    composite = CompositeRule(self.constraint_engine.validated_rules)
-                    return composite.generate(seed)
+                    compatible_rules.append(list(self.constraint_engine.validated_rules))
 
-        raise ValueError(
-            "No valid rule combination could be found from available rules."
+        if not compatible_rules:
+            raise ValueError(
+                "No valid rule combination could be found from available rules."
+            )
+
+        rng = random.Random(seed)
+        return compatible_rules[rng.randrange(len(compatible_rules))]
+
+    def _finalize_puzzle(self, puzzle: MatrixPuzzle) -> MatrixPuzzle:
+        difficulty = DifficultyEngine.score(puzzle)
+        explanation = explain_puzzle(puzzle)
+
+        return replace(
+            puzzle,
+            missing_position=(MISSING_ROW, MISSING_COL),
+            difficulty=difficulty,
+            explanation=explanation,
         )
 
 
