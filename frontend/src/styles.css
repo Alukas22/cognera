@@ -212,18 +212,12 @@ body {
   background: #fff;
   border: 1px solid var(--border);
   padding: 12px;
+  min-height: 104px;
   display: grid;
   align-items: center;
-  justify-items: start;
+  justify-items: center;
   gap: 6px;
-  text-align: left;
-}
-
-.option-label {
-  font-size: 0.78rem;
-  color: var(--muted);
-  font-weight: 700;
-  letter-spacing: 0.06em;
+  text-align: center;
 }
 
 .option-visual {

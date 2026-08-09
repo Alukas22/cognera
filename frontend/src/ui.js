@@ -3,14 +3,14 @@
  */
 
 import { formatDuration, getAccuracy, getAverageDifficulty } from "./game.js";
-import { renderFigureSvg } from "./figureSvg.js";
+import { FigureRenderer } from "./figureSvg.js";
 
 function matrixCell(cell, isMissing) {
   const content = isMissing
     ? "?"
     : `
       <div class="figure-wrap" data-testid="matrix-figure">
-        ${renderFigureSvg(cell, { sizePx: 64, className: "matrix-figure-svg" })}
+        ${FigureRenderer(cell, { sizePx: 64, className: "matrix-figure-svg" })}
       </div>
     `;
 
@@ -37,12 +37,12 @@ function optionButton(state, option, index) {
       class="${optionClass}"
       data-action="select-option"
       data-testid="option-${index}"
+      aria-label="Option ${option.label}"
       data-index="${index}"
       ${state.isResolved || state.loading ? "disabled" : ""}
     >
-      <span class="option-label">${option.label}</span>
       <span class="option-visual" data-testid="option-visual-${index}">
-        ${renderFigureSvg(option, { sizePx: 56, className: "option-figure-svg" })}
+        ${FigureRenderer(option, { sizePx: 56, className: "option-figure-svg" })}
       </span>
     </button>
   `;
@@ -61,7 +61,7 @@ function feedbackBlock(state) {
     <div class="feedback-wrap">
       <p class="feedback ${statusClass}">${statusText}</p>
       <p class="feedback-answer" data-testid="correct-answer">Correct answer: ${correctOption.label}</p>
-      <div class="feedback-visual">${renderFigureSvg(correctOption, { sizePx: 44, className: "feedback-figure-svg" })}</div>
+      <div class="feedback-visual">${FigureRenderer(correctOption, { sizePx: 44, className: "feedback-figure-svg" })}</div>
       <p class="feedback-explanation" data-testid="explanation-text">${state.puzzle.explanation}</p>
     </div>
   `;

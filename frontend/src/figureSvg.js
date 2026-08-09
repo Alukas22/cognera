@@ -41,7 +41,7 @@ function shapeMarkup(shape, fillColor) {
   return `<polygon points="50,12 88,50 50,88 12,50" fill="${fillColor}" stroke="#0f172a" stroke-opacity="0.34" stroke-width="4" />`;
 }
 
-export function renderFigureSvg(figure, options = {}) {
+export function FigureRenderer(figure, options = {}) {
   if (!figure) {
     return "";
   }
@@ -68,4 +68,8 @@ export function renderFigureSvg(figure, options = {}) {
       </g>
     </svg>
   `;
+}
+
+export function renderFigureSvg(figure, options = {}) {
+  return FigureRenderer(figure, options);
 }

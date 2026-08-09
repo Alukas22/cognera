@@ -137,6 +137,46 @@ def test_matrix_generator_different_seeds_produce_different_options() -> None:
     assert first.options != second.options or first.correct_index != second.correct_index
 
 
+def test_matrix_generator_correct_index_tracks_shuffled_option() -> None:
+    registry = RuleRegistry()
+    puzzle = MatrixGenerator(registry).generate(seed=3030)
+
+    assert puzzle.options[puzzle.correct_index].is_correct is True
+    assert sum(1 for option in puzzle.options if option.is_correct) == 1
+
+
+def test_matrix_generator_option_order_varies_across_seeds() -> None:
+    registry = RuleRegistry()
+    generator = MatrixGenerator(registry)
+
+    option_orders = {
+        tuple(
+            (option.figure.shape, option.figure.rotation, option.figure.size, option.figure.color)
+            for option in generator.generate(seed=seed).options
+        )
+        for seed in range(100, 140)
+    }
+
+    assert len(option_orders) > 1
+
+
+def test_matrix_generator_correct_position_distribution_is_approximately_uniform() -> None:
+    registry = RuleRegistry()
+    generator = MatrixGenerator(registry)
+
+    samples = 600
+    counts = [0, 0, 0, 0, 0, 0]
+    for seed in range(samples):
+        puzzle = generator.generate(seed=10_000 + seed)
+        counts[puzzle.correct_index] += 1
+
+    expected = samples / 6
+    tolerance = expected * 0.35
+
+    for count in counts:
+        assert abs(count - expected) <= tolerance
+
+
 def test_matrix_generator_solution_matches_rule_engine() -> None:
     registry = RuleRegistry()
     puzzle = MatrixGenerator(registry).generate(seed=2024)
