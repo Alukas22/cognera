@@ -3,22 +3,15 @@
  */
 
 import { formatDuration, getAccuracy, getAverageDifficulty } from "./game.js";
-
-function renderFigure(figure) {
-  if (!figure) {
-    return "";
-  }
-  return `${figure.shape} • ${figure.rotation}° • ${figure.size} • ${figure.color}`;
-}
+import { renderFigureSvg } from "./figureSvg.js";
 
 function matrixCell(cell, isMissing) {
   const content = isMissing
     ? "?"
     : `
-      <span class="cell-shape">${cell.shape}</span>
-      <span class="cell-meta">${cell.rotation}°</span>
-      <span class="cell-meta">${cell.size}</span>
-      <span class="cell-meta">${cell.color}</span>
+      <div class="figure-wrap" data-testid="matrix-figure">
+        ${renderFigureSvg(cell, { sizePx: 64, className: "matrix-figure-svg" })}
+      </div>
     `;
 
   return `<div class="matrix-cell ${isMissing ? "matrix-cell--missing" : ""}">${content}</div>`;
@@ -48,7 +41,9 @@ function optionButton(state, option, index) {
       ${state.isResolved || state.loading ? "disabled" : ""}
     >
       <span class="option-label">${option.label}</span>
-      <span class="option-value">${renderFigure(option)}</span>
+      <span class="option-visual" data-testid="option-visual-${index}">
+        ${renderFigureSvg(option, { sizePx: 56, className: "option-figure-svg" })}
+      </span>
     </button>
   `;
 }
@@ -65,7 +60,8 @@ function feedbackBlock(state) {
   return `
     <div class="feedback-wrap">
       <p class="feedback ${statusClass}">${statusText}</p>
-      <p class="feedback-answer" data-testid="correct-answer">Correct answer: ${correctOption.label} — ${renderFigure(correctOption)}</p>
+      <p class="feedback-answer" data-testid="correct-answer">Correct answer: ${correctOption.label}</p>
+      <div class="feedback-visual">${renderFigureSvg(correctOption, { sizePx: 44, className: "feedback-figure-svg" })}</div>
       <p class="feedback-explanation" data-testid="explanation-text">${state.puzzle.explanation}</p>
     </div>
   `;

@@ -167,7 +167,7 @@ body {
   display: grid;
   align-content: center;
   justify-items: center;
-  gap: 4px;
+  place-items: center;
 }
 
 .matrix-cell--missing {
@@ -176,14 +176,16 @@ body {
   background: #ecfeff;
 }
 
-.cell-shape {
-  text-transform: capitalize;
-  font-weight: 700;
+.figure-wrap {
+  width: 100%;
+  display: grid;
+  place-items: center;
 }
 
-.cell-meta {
-  color: var(--muted);
-  font-size: 0.75rem;
+.matrix-figure-svg,
+.option-figure-svg,
+.feedback-figure-svg {
+  display: block;
 }
 
 .answer-header {
@@ -211,7 +213,7 @@ body {
   border: 1px solid var(--border);
   padding: 12px;
   display: grid;
-  align-items: start;
+  align-items: center;
   justify-items: start;
   gap: 6px;
   text-align: left;
@@ -224,8 +226,11 @@ body {
   letter-spacing: 0.06em;
 }
 
-.option-value {
-  text-transform: capitalize;
+.option-visual {
+  min-height: 60px;
+  width: 100%;
+  display: grid;
+  place-items: center;
 }
 
 .option-button--selected {
@@ -264,6 +269,10 @@ body {
 .feedback-explanation {
   margin: 8px 0 0;
   color: var(--ink);
+}
+
+.feedback-visual {
+  margin-top: 8px;
 }
 
 .fatal-panel {
