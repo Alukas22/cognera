@@ -147,24 +147,10 @@ export async function fetchSystemHealth() {
 
   return {
     backend_status: health.status ?? "unknown",
-    backend_version: version.application_version ?? version.version ?? "unknown",
+    backend_version: version.version ?? "unknown",
     backend_name: version.app_name ?? "Cognera",
-    backend_commit_sha: version.commit_sha ?? "unknown",
-    backend_git_branch: version.git_branch ?? "unknown",
-    backend_build_timestamp: version.build_timestamp ?? "unknown",
     deployment_environment: import.meta.env.VITE_DEPLOY_ENV ?? "local",
     frontend_version: __APP_VERSION__,
     frontend_mode: import.meta.env.MODE,
-  };
-}
-
-export async function fetchVersionInfo() {
-  const { json: version } = await requestJson(VERSION_ENDPOINT);
-  return {
-    app_name: version.app_name ?? "Cognera",
-    application_version: version.application_version ?? version.version ?? "unknown",
-    commit_sha: version.commit_sha ?? "unknown",
-    git_branch: version.git_branch ?? "unknown",
-    build_timestamp: version.build_timestamp ?? "unknown",
   };
 }

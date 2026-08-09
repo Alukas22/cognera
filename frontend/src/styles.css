@@ -280,20 +280,6 @@ body {
   margin-bottom: 8px;
 }
 
-.version-footer {
-  display: flex;
-  gap: 14px;
-  flex-wrap: wrap;
-  justify-content: center;
-  align-items: center;
-  font-size: 0.78rem;
-  color: var(--muted);
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.75);
-}
-
 .fatal-panel p {
   margin-top: 0;
   margin-bottom: 14px;

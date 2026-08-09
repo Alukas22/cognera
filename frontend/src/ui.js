@@ -94,26 +94,6 @@ function diagnosticsPill(state) {
   return `<div class="pill" data-role="latency">API ${state.lastResponseTimeMs.toFixed(1)}ms</div>`;
 }
 
-function versionFooter(state) {
-  const info = state.versionInfo;
-  if (!info) {
-    return "<footer class='version-footer'>Version metadata unavailable.</footer>";
-  }
-
-  const shortSha = info.commit_sha && info.commit_sha !== "unknown"
-    ? info.commit_sha.slice(0, 8)
-    : "unknown";
-
-  return `
-    <footer class="version-footer" data-testid="version-footer">
-      <span>Version ${info.application_version}</span>
-      <span>Branch ${info.git_branch}</span>
-      <span>Commit ${shortSha}</span>
-      <span>Built ${info.build_timestamp}</span>
-    </footer>
-  `;
-}
-
 export function renderHealthView(root, state, handlers) {
   const health = state.health;
   root.innerHTML = `
@@ -144,7 +124,6 @@ export function renderHealthView(root, state, handlers) {
         <article class="health-item"><span>Frontend Mode</span><strong>${health ? health.frontend_mode : "--"}</strong></article>
         <article class="health-item"><span>Environment</span><strong>${health ? health.deployment_environment : "--"}</strong></article>
       </section>
-      ${versionFooter(state)}
       ${loadingOverlay(state)}
     </main>
   `;
@@ -251,7 +230,6 @@ export function renderApp(root, state, handlers) {
         }
         <div data-testid="feedback-block">${feedbackBlock(state)}</div>
       </section>
-      ${versionFooter(state)}
       ${loadingOverlay(state)}
     </main>
   `;

@@ -1,10 +1,9 @@
 import "./styles.css";
-import { fetchPuzzle, fetchSystemHealth, fetchVersionInfo } from "./api.js";
+import { fetchPuzzle, fetchSystemHealth } from "./api.js";
 import {
   createGameState,
   resetSession,
   setHealthData,
-  setVersionInfo,
   setPuzzle,
   selectOption,
   formatDuration,
@@ -99,18 +98,6 @@ async function loadHealth() {
   updateView();
 }
 
-async function loadVersionMetadata() {
-  try {
-    const versionInfo = await fetchVersionInfo();
-    state = setVersionInfo(state, versionInfo);
-    updateView();
-  } catch (error) {
-    logger.warn("app.version_metadata_unavailable", {
-      message: error instanceof Error ? error.message : "unknown",
-    });
-  }
-}
-
 async function loadNextPuzzle() {
   state = { ...state, loading: true, errorMessage: "" };
   updateView();
@@ -149,7 +136,6 @@ window.setInterval(() => {
 
 window.addEventListener("DOMContentLoaded", async () => {
   updateView();
-  await loadVersionMetadata();
   if (state.view === "health") {
     await loadHealth();
     return;
