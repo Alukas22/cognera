@@ -3,6 +3,9 @@ name = "cognera"
 version = "0.1.0"
 description = "Cognera platform foundation"
 authors = ["Cognera Team <team@example.com>"]
+packages = [
+  { include = "backend" }
+]
 
 [tool.poetry.dependencies]
 python = "^3.12"
@@ -14,8 +17,9 @@ pydantic = "^2.6.0"
 pydantic-settings = "^2.15.0"
 psycopg = { version = "^3.2.0", extras = ["binary"] }
 
-[tool.poetry.dev-dependencies]
+[tool.poetry.group.dev.dependencies]
 pytest = "^8.0"
+httpx = "^0.28.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
