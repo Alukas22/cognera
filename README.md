@@ -9,6 +9,22 @@ The future of cognitive performance.
 - `.github/workflows/` - CI workflows
 - `docs/` - Project documentation
 
+## Puzzle standard
+
+Cognera puzzle quality is governed by the canonical specification in
+`docs/COGNERA_PUZZLE_STANDARD.md`.
+
+All future puzzle generation, validation, explanations, and quality gates
+must comply with this standard.
+
+## Visual grammar
+
+Cognera visual object architecture is governed by
+`docs/COGNERA_VISUAL_GRAMMAR.md`.
+
+All future visual primitives, symbol composition, transformations, and
+rendering logic must comply with this grammar.
+
 ## Getting started
 
 1. Copy `.env.example` to `.env`
