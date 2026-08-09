@@ -177,6 +177,50 @@ def test_matrix_generator_correct_position_distribution_is_approximately_uniform
         assert abs(count - expected) <= tolerance
 
 
+def test_matrix_generator_options_are_unique_across_many_seeds() -> None:
+    registry = RuleRegistry()
+    generator = MatrixGenerator(registry)
+
+    for seed in range(4000, 4100):
+        puzzle = generator.generate(seed=seed)
+        figure_keys = {
+            (option.figure.shape, option.figure.rotation, option.figure.size, option.figure.color)
+            for option in puzzle.options
+        }
+        assert len(figure_keys) == 6
+
+
+def test_matrix_generator_explanation_is_rule_based_and_non_empty() -> None:
+    registry = RuleRegistry()
+    puzzle = MatrixGenerator(registry).generate(seed=2024)
+
+    assert puzzle.explanation.strip()
+
+    rule_terms = {
+        "rotation": "rotation",
+        "shape": "shape",
+        "color": "color",
+        "size": "size",
+        "count": "count",
+        "position": "row/column",
+        "mirror": "mirror",
+    }
+
+    explanation = puzzle.explanation.lower()
+    assert any(rule_terms[rule.type.value] in explanation for rule in puzzle.rules)
+
+
+def test_matrix_generator_explanation_references_at_least_one_applied_rule() -> None:
+    registry = RuleRegistry()
+    generator = MatrixGenerator(registry)
+
+    for seed in range(2024, 2040):
+        puzzle = generator.generate(seed=seed)
+        explanation = puzzle.explanation.lower()
+        assert explanation
+        assert any(rule.type.value in explanation or (rule.type == RuleType.POSITION and "row/column" in explanation) for rule in puzzle.rules)
+
+
 def test_matrix_generator_solution_matches_rule_engine() -> None:
     registry = RuleRegistry()
     puzzle = MatrixGenerator(registry).generate(seed=2024)

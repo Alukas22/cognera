@@ -77,6 +77,7 @@ def test_matrix_generate_endpoint_returns_expected_schema() -> None:
     assert payload["difficulty_profile"]["overall"] == payload["difficulty"]
     assert isinstance(payload["explanation"], str)
     assert payload["explanation"]
+    assert any(rule["type"] in payload["explanation"].lower() for rule in payload["rules"])
 
 
 def test_matrix_generate_endpoint_is_deterministic_for_same_seed() -> None:

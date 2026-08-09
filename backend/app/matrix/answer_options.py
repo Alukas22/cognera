@@ -15,74 +15,90 @@ class AnswerOptionEngine:
     """Generate deterministic production answer options from a solved puzzle."""
 
     def build(self, puzzle: MatrixPuzzle) -> tuple[tuple[AnswerOption, ...], int, tuple[Distractor, ...]]:
-        candidates = self._collect_candidates(puzzle)
-        distractors: list[Distractor] = []
-        seen_figures: set[tuple[str, int, str, str]] = set()
-        correct_key = self._figure_key(puzzle.correct_answer)
+        for attempt in range(4):
+            candidates = self._collect_candidates(puzzle, attempt)
+            distractors: list[Distractor] = []
+            seen_figures: set[tuple[str, int, str, str]] = set()
+            correct_key = self._figure_key(puzzle.correct_answer)
 
-        for distractor in candidates:
-            key = self._figure_key(distractor.figure)
-            if key == correct_key or key in seen_figures:
+            for distractor in candidates:
+                key = self._figure_key(distractor.figure)
+                if key == correct_key or key in seen_figures:
+                    continue
+                seen_figures.add(key)
+                distractors.append(distractor)
+                if len(distractors) == 5:
+                    break
+
+            if len(distractors) < 5:
                 continue
-            seen_figures.add(key)
-            distractors.append(distractor)
-            if len(distractors) == 5:
-                break
 
-        if len(distractors) < 5:
-            raise ValueError("Unable to generate enough unique answer options.")
-
-        options = [
-            AnswerOption(
-                label="",
-                figure=puzzle.correct_answer,
-                is_correct=True,
-                explanation="Correct answer.",
-                difficulty=puzzle.difficulty,
+            options = [
+                AnswerOption(
+                    label="",
+                    figure=puzzle.correct_answer,
+                    is_correct=True,
+                    explanation="Correct answer.",
+                    difficulty=puzzle.difficulty,
+                )
+            ]
+            options.extend(
+                AnswerOption(
+                    label="",
+                    figure=distractor.figure,
+                    is_correct=False,
+                    reason=distractor.reason,
+                    explanation=distractor.explanation,
+                    origin_rule=distractor.origin_rule,
+                    difficulty=distractor.difficulty,
+                )
+                for distractor in distractors
             )
-        ]
-        options.extend(
-            AnswerOption(
-                label="",
-                figure=distractor.figure,
-                is_correct=False,
-                reason=distractor.reason,
-                explanation=distractor.explanation,
-                origin_rule=distractor.origin_rule,
-                difficulty=distractor.difficulty,
-            )
-            for distractor in distractors
-        )
 
-        rng = random.Random(puzzle.seed ^ 0xA05E)
-        rng.shuffle(options)
+            rng = random.Random(puzzle.seed ^ 0xA05E ^ (attempt * 0x9E37))
+            rng.shuffle(options)
 
-        labeled_options: list[AnswerOption] = []
-        correct_index = 0
-        for index, option in enumerate(options):
-            labeled = AnswerOption(
-                label=OPTION_LABELS[index],
-                figure=option.figure,
-                is_correct=option.is_correct,
-                reason=option.reason,
-                explanation=option.explanation,
-                origin_rule=option.origin_rule,
-                difficulty=option.difficulty,
-            )
-            if labeled.is_correct:
-                correct_index = index
-            labeled_options.append(labeled)
+            labeled_options: list[AnswerOption] = []
+            correct_index = 0
+            for index, option in enumerate(options):
+                labeled = AnswerOption(
+                    label=OPTION_LABELS[index],
+                    figure=option.figure,
+                    is_correct=option.is_correct,
+                    reason=option.reason,
+                    explanation=option.explanation,
+                    origin_rule=option.origin_rule,
+                    difficulty=option.difficulty,
+                )
+                if labeled.is_correct:
+                    correct_index = index
+                labeled_options.append(labeled)
 
-        return tuple(labeled_options), correct_index, tuple(distractors)
+            if self._options_are_unique(tuple(labeled_options)):
+                return tuple(labeled_options), correct_index, tuple(distractors)
 
-    def _collect_candidates(self, puzzle: MatrixPuzzle) -> list[Distractor]:
+        raise ValueError("Unable to generate six unique answer options.")
+
+    def _collect_candidates(self, puzzle: MatrixPuzzle, attempt: int = 0) -> list[Distractor]:
         candidates: list[Distractor] = []
 
         for rule in puzzle.rules:
             candidates.extend(self._candidates_for_rule(puzzle, rule))
 
         candidates.extend(self._generic_fallbacks(puzzle))
+
+        if attempt > 0:
+            rng = random.Random(puzzle.seed ^ 0x51A7 ^ attempt)
+            rng.shuffle(candidates)
+
         return candidates
+
+    def _options_are_unique(self, options: tuple[AnswerOption, ...]) -> bool:
+        keys = {
+            self._figure_key(option.figure)
+            for option in options
+        }
+        return len(keys) == len(options)
 
     def _candidates_for_rule(self, puzzle: MatrixPuzzle, rule: Rule) -> list[Distractor]:
         difficulty = self._rule_difficulty(puzzle, rule.type)
