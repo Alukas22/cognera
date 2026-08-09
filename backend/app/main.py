@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import AppConfig
 from .database import prepare_database_connection
+from .matrix import RuleRegistry, MatrixGenerator, RuleType, explain_puzzle
 
 config = AppConfig()
 
@@ -86,3 +87,41 @@ async def health() -> dict[str, str]:
 async def version() -> dict[str, str]:
     logger.info("endpoint.version", extra={"path": "/version"})
     return {"app_name": config.app_name, "version": config.version}
+
+
+def _serialize_figure(figure):
+    if figure is None:
+        return None
+    return {
+        "shape": figure.shape,
+        "rotation": figure.rotation,
+        "size": figure.size,
+        "color": figure.color,
+    }
+
+
+@app.get("/matrix/demo")
+async def matrix_demo() -> dict:
+    logger.info("endpoint.matrix_demo", extra={"path": "/matrix/demo"})
+
+    registry = RuleRegistry()
+    rule = registry.get(RuleType.ROTATION)
+    puzzle = MatrixGenerator(rule).generate(seed=123)
+    explanation_text = explain_puzzle(puzzle)
+
+    options = [
+        _serialize_figure(puzzle.distractors[0]),
+        _serialize_figure(puzzle.correct_answer),
+        _serialize_figure(puzzle.distractors[1]),
+        _serialize_figure(puzzle.distractors[2]),
+    ]
+
+    return {
+        "grid": [
+            [_serialize_figure(cell) for cell in row] for row in puzzle.grid
+        ],
+        "missing": [2, 2],
+        "options": options,
+        "correct": 1,
+        "explanation": explanation_text,
+    }

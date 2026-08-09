@@ -8,7 +8,7 @@ class AppConfig(BaseSettings):
     app_name: str = Field("Cognera", env="APP_NAME")
     version: str = Field("0.2.0", env="APP_VERSION")
     debug: bool = Field(False, env="DEBUG")
-    database_url: str = Field(..., env="DATABASE_URL")
+    database_url: str = Field("sqlite:///:memory:", env="DATABASE_URL")
     cors_origins: List[str] = Field(default_factory=lambda: ["*"], env="CORS_ORIGINS")
 
     @field_validator("cors_origins", mode="before")
