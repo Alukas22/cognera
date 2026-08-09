@@ -1,11 +1,14 @@
 import json
 import logging
+from pathlib import Path
 import sys
 import uuid
 from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from .config import AppConfig
@@ -45,6 +48,12 @@ logger.addHandler(handler)
 class MatrixGenerateRequest(BaseModel):
     seed: int | None = None
 
+
+BASE_DIR = Path(__file__).resolve().parents[2]
+FRONTEND_DIST_DIR = BASE_DIR / "frontend-dist"
+FRONTEND_ASSETS_DIR = FRONTEND_DIST_DIR / "assets"
+FRONTEND_INDEX_FILE = FRONTEND_DIST_DIR / "index.html"
+
 app = FastAPI(title=config.app_name, debug=config.debug, version=config.version)
 app.add_middleware(
     CORSMiddleware,
@@ -53,6 +62,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+if FRONTEND_ASSETS_DIR.exists():
+    app.mount("/assets", StaticFiles(directory=FRONTEND_ASSETS_DIR), name="frontend-assets")
 
 
 @app.middleware("http")
@@ -77,9 +89,19 @@ async def on_startup() -> None:
 
 
 @app.get("/")
-async def read_root() -> dict[str, str]:
+async def read_root():
     logger.info("endpoint.root", extra={"path": "/"})
+    if FRONTEND_INDEX_FILE.exists():
+        return FileResponse(FRONTEND_INDEX_FILE)
     return {"message": "Welcome to Cognera"}
+
+
+@app.get("/health-check")
+async def health_check_page():
+    logger.info("endpoint.health_check_page", extra={"path": "/health-check"})
+    if FRONTEND_INDEX_FILE.exists():
+        return FileResponse(FRONTEND_INDEX_FILE)
+    return {"message": "Frontend build not available"}
 
 
 @app.get("/health")
