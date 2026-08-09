@@ -13,6 +13,7 @@ from .answer_options import AnswerOptionEngine
 from .difficulty_engine import CognitiveDifficultyEngine
 from .expert_reviewer import ExpertQualityReviewer
 from .explainer import explain_puzzle
+from .human_reasoning_validator import HumanReasoningValidator
 from .models import Figure, MatrixPuzzle, Rule, SkillProfile
 from .perceptual_validation import PerceptualValidationEngine
 from .quality_engine import PuzzleQualityEngine
@@ -190,6 +191,7 @@ class MatrixGenerator:
         self.quality_engine = PuzzleQualityEngine()
         self.perceptual_validation_engine = PerceptualValidationEngine()
         self.expert_reviewer = ExpertQualityReviewer()
+        self.human_reasoning_validator = HumanReasoningValidator()
         self._compatible_rule_sets: list[list[BaseRule]] | None = None
 
     def generate(self, seed: int) -> MatrixPuzzle:
@@ -372,15 +374,26 @@ class MatrixGenerator:
             quality_components,
             checks,
         )
+        candidate_rules = list(selected_rules)
+        if self.registry is not None:
+            candidate_rules = [self.registry.get(rule_type) for rule_type in sorted(self.registry.available(), key=lambda item: item.value)]
+        human_checks, human_review, human_diagnostics = self.human_reasoning_validator.validate(
+            calibrated,
+            selected_rules,
+            candidate_rules=candidate_rules,
+            perceptual_validation_passed=perceptual_ok,
+        )
         checks = {
             **checks,
             "expert_reviewer_acceptance": reviewer_accepted,
             "blind_solver_matches_generator": not reviewer_failures["blind_solver_disagrees_with_generator"],
             "overall_psychometric_quality_threshold": not reviewer_failures["psychometric_score_below_threshold"],
             "explanation_derived_from_rules": not reviewer_failures["explanation_not_directly_derived"],
+            **human_checks,
+            "human_reasoning_validator_acceptance": len(human_review.rejection_reasons) == 0,
         }
 
-        accepted = strict_logical_ok and quality_accepted and reviewer_accepted
+        accepted = strict_logical_ok and quality_accepted and reviewer_accepted and len(human_review.rejection_reasons) == 0
 
         if enforce_quality_gate and not accepted:
             return None
@@ -403,6 +416,8 @@ class MatrixGenerator:
             "expert_reviewer_scores": reviewer_scores,
             "expert_reviewer_failures": reviewer_failures,
             "expert_reviewer_diagnostics": reviewer_diagnostics,
+            "human_reasoning_review": human_review.as_dict(),
+            "human_reasoning_diagnostics": human_diagnostics,
             "quality_score": quality_score,
             "accepted_by_quality_gate": accepted,
             "accepted_by_strict_logical_validation": strict_logical_ok,

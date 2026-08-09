@@ -39,12 +39,35 @@ def explain_puzzle(puzzle: MatrixPuzzle) -> str:
 
     rule_lines = [_rule_explanation(index, rule.type, str(rule.value)) for index, rule in enumerate(puzzle.rules, start=1)]
     figure_summary = (
-        f"Therefore, the missing figure is a {puzzle.correct_answer.size} "
+        "Correct answer: "
+        f"The missing figure is a {puzzle.correct_answer.size} "
         f"{puzzle.correct_answer.color} {puzzle.correct_answer.shape} "
         f"rotated to {puzzle.correct_answer.rotation} degrees."
     )
 
     lines = [*rule_lines, figure_summary]
+    lines.append("Row reasoning:")
+    for row_index, row in enumerate(puzzle.grid, start=1):
+        described = [
+            "missing target cell"
+            if cell is None
+            else f"{cell.size} {cell.color} {cell.shape} at {cell.rotation}°"
+            for cell in row
+        ]
+        lines.append(f"Row {row_index}: {' | '.join(described)}")
+
+    lines.append("Column reasoning:")
+    for col_index in range(3):
+        described = []
+        for row_index in range(3):
+            cell = puzzle.grid[row_index][col_index]
+            described.append(
+                "missing target cell"
+                if cell is None
+                else f"{cell.size} {cell.color} {cell.shape} at {cell.rotation}°"
+            )
+        lines.append(f"Column {col_index + 1}: {' | '.join(described)}")
+
     lines.append("Visible cell derivation:")
     for row_index, row in enumerate(puzzle.grid, start=1):
         for col_index, cell in enumerate(row, start=1):

@@ -17,7 +17,11 @@ from .models import (
     SkillProfile,
 )
 from .answer_options import AnswerOptionEngine
+from .blind_solver import BlindSolver
 from .difficulty_engine import CognitiveDifficultyEngine, DifficultyEngine
+from .expert_reviewer import ExpertQualityReviewer
+from .human_reasoning_validator import HumanReasoningValidator
+from .perceptual_validation import PerceptualValidationEngine
 from .quality_engine import PuzzleQualityEngine
 from .rule_engine import MatrixGenerator, RuleRegistry, RuleConstraintEngine, BaseRule
 from .explainer import explain_puzzle
@@ -25,6 +29,7 @@ from .explainer import explain_puzzle
 __all__ = [
     "AnswerOption",
     "AnswerOptionEngine",
+    "BlindSolver",
     "CognitiveSkill",
     "CognitiveDifficultyEngine",
     "DifficultyProfile",
@@ -37,9 +42,12 @@ __all__ = [
     "SkillProfile",
     "BaseRule",
     "MatrixGenerator",
+    "ExpertQualityReviewer",
+    "HumanReasoningValidator",
     "RuleRegistry",
     "RuleConstraintEngine",
     "DifficultyEngine",
+    "PerceptualValidationEngine",
     "PuzzleQualityEngine",
     "explain_puzzle",
 ]
