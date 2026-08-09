@@ -107,3 +107,21 @@ def test_matrix_generate_endpoint_is_deterministic_for_same_seed() -> None:
     second = client.post("/matrix/generate", json={"seed": 12345}).json()
 
     assert first == second
+
+
+def test_version_endpoint_includes_deployment_traceability_metadata() -> None:
+    client = TestClient(app)
+    response = client.get("/version")
+
+    assert response.status_code == 200
+    payload = response.json()
+
+    assert payload["app_name"] == "Cognera"
+    assert "application_version" in payload
+    assert "version" in payload
+    assert "commit_sha" in payload
+    assert "build_timestamp" in payload
+    assert "git_branch" in payload
+    assert isinstance(payload["commit_sha"], str)
+    assert isinstance(payload["build_timestamp"], str)
+    assert isinstance(payload["git_branch"], str)

@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 from pathlib import Path
 import sys
 import uuid
@@ -132,7 +133,28 @@ async def health() -> dict[str, str]:
 @app.get("/version")
 async def version() -> dict[str, str]:
     logger.info("endpoint.version", extra={"path": "/version"})
-    return {"app_name": config.app_name, "version": config.version}
+    commit_sha = (
+        os.getenv("GIT_COMMIT_SHA")
+        or os.getenv("RAILWAY_GIT_COMMIT_SHA")
+        or os.getenv("SOURCE_VERSION")
+        or "unknown"
+    )
+    git_branch = (
+        os.getenv("GIT_BRANCH")
+        or os.getenv("RAILWAY_GIT_BRANCH")
+        or os.getenv("VERCEL_GIT_COMMIT_REF")
+        or "unknown"
+    )
+    build_timestamp = os.getenv("BUILD_TIMESTAMP") or "unknown"
+
+    return {
+        "app_name": config.app_name,
+        "version": config.version,
+        "application_version": config.version,
+        "commit_sha": commit_sha,
+        "build_timestamp": build_timestamp,
+        "git_branch": git_branch,
+    }
 
 
 def _serialize_figure(figure):

@@ -20,6 +20,7 @@ export function createGameState(now = Date.now()) {
     lastResponseTimeMs: null,
     developerMode: import.meta.env.DEV,
     health: null,
+    versionInfo: null,
     selectedIndex: null,
     isResolved: false,
     lastResult: null,
@@ -56,6 +57,13 @@ export function setHealthData(state, health) {
     appLoading: false,
     healthError: "",
     health,
+  };
+}
+
+export function setVersionInfo(state, versionInfo) {
+  return {
+    ...state,
+    versionInfo,
   };
 }
 
