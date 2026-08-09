@@ -9,17 +9,10 @@ from itertools import combinations, permutations
 from typing import Iterable
 
 from .answer_options import AnswerOptionEngine
+from .difficulty_engine import CognitiveDifficultyEngine
 from .explainer import explain_puzzle
 from .models import Figure, MatrixPuzzle, Rule, SkillProfile
 from .rules import BaseRule, MISSING_COL, MISSING_ROW, RuleType
-
-
-SHAPE_RULE_TYPES = {
-    RuleType.SHAPE,
-    RuleType.COUNT,
-    RuleType.POSITION,
-    RuleType.MIRROR,
-}
 
 
 class RuleConstraintEngine:
@@ -103,46 +96,6 @@ class RuleConstraintEngine:
             if composite.validate(tuple(tuple(row) for row in grid)):
                 return "A distractor also satisfies the composite rule set."
         return None
-
-
-class DifficultyEngine:
-    """Deterministic difficulty scoring for generated puzzles."""
-
-    MAX_INTERACTION_BONUS = 0.25
-    BASE_PAIR_BONUS = 0.04
-
-    @classmethod
-    def score(cls, puzzle: MatrixPuzzle) -> float:
-        if not puzzle.rules:
-            return 0.0
-
-        base_score = sum(rule.difficulty for rule in puzzle.rules) / len(puzzle.rules)
-        interaction_score = cls._interaction_bonus(puzzle.rules)
-        return min(1.0, max(0.0, base_score + interaction_score))
-
-    @classmethod
-    def _interaction_bonus(cls, rules: tuple[Rule, ...]) -> float:
-        if len(rules) < 2:
-            return 0.0
-
-        bonus = 0.0
-        for first, second in combinations(rules, 2):
-            bonus += cls._pair_bonus(first, second)
-        return min(cls.MAX_INTERACTION_BONUS, bonus)
-
-    @classmethod
-    def _pair_bonus(cls, first: Rule, second: Rule) -> float:
-        bonus = cls.BASE_PAIR_BONUS
-        if first.type == RuleType.ROTATION or second.type == RuleType.ROTATION:
-            bonus += 0.01
-        if first.type in SHAPE_RULE_TYPES and second.type in SHAPE_RULE_TYPES:
-            bonus += 0.01
-        if {first.type, second.type} == {RuleType.POSITION, RuleType.COUNT}:
-            bonus += 0.02
-        if {first.type, second.type} == {RuleType.POSITION, RuleType.MIRROR}:
-            bonus += 0.02
-        return bonus
-
 
 class RuleRegistry:
     """Discover and instantiate rule plugins."""
@@ -229,6 +182,8 @@ class MatrixGenerator:
             self.rule = rule_or_registry
         self.constraint_engine = RuleConstraintEngine()
         self.answer_option_engine = AnswerOptionEngine()
+        self.difficulty_engine = CognitiveDifficultyEngine()
+        self._compatible_rule_sets: list[list[BaseRule]] | None = None
 
     def generate(self, seed: int) -> MatrixPuzzle:
         if self.rule is not None:
@@ -244,39 +199,49 @@ class MatrixGenerator:
         return self._finalize_puzzle(puzzle)
 
     def _select_rules(self, seed: int) -> list[BaseRule]:
-        available_rules = sorted(self.registry.available(), key=lambda rule_type: rule_type.value)
-        compatible_rules: list[list[BaseRule]] = []
+        if self._compatible_rule_sets is None:
+            available_rules = sorted(self.registry.available(), key=lambda rule_type: rule_type.value)
+            compatible_rules: list[list[BaseRule]] = []
 
-        for selection_count in range(1, min(3, len(available_rules)) + 1):
-            for rule_types in combinations(available_rules, selection_count):
-                selected_rules = [self.registry.get(rule_type) for rule_type in rule_types]
-                if self.constraint_engine.validate_rules(selected_rules):
-                    compatible_rules.append(list(self.constraint_engine.validated_rules))
+            for selection_count in range(1, min(3, len(available_rules)) + 1):
+                for rule_types in combinations(available_rules, selection_count):
+                    selected_rules = [self.registry.get(rule_type) for rule_type in rule_types]
+                    if self.constraint_engine.validate_rules(selected_rules):
+                        compatible_rules.append(list(self.constraint_engine.validated_rules))
 
-        if not compatible_rules:
+            self._compatible_rule_sets = compatible_rules
+
+        if not self._compatible_rule_sets:
             raise ValueError(
                 "No valid rule combination could be found from available rules."
             )
 
         rng = random.Random(seed)
-        return compatible_rules[rng.randrange(len(compatible_rules))]
+        selected = self._compatible_rule_sets[rng.randrange(len(self._compatible_rule_sets))]
+        return [self.registry.get(rule.rule_type) for rule in selected]
 
     def _finalize_puzzle(self, puzzle: MatrixPuzzle) -> MatrixPuzzle:
-        difficulty = DifficultyEngine.score(puzzle)
         explanation = explain_puzzle(puzzle)
+        provisional_difficulty = sum(rule.difficulty for rule in puzzle.rules) / max(len(puzzle.rules), 1)
         base_puzzle = replace(
             puzzle,
             missing_position=(MISSING_ROW, MISSING_COL),
-            difficulty=difficulty,
+            difficulty=provisional_difficulty,
             explanation=explanation,
         )
         options, correct_index, distractors = self.answer_option_engine.build(base_puzzle)
-
-        return replace(
+        puzzle_with_options = replace(
             base_puzzle,
             distractors=distractors,
             options=options,
             correct_index=correct_index,
+        )
+        difficulty_profile = self.difficulty_engine.evaluate(puzzle_with_options)
+
+        return replace(
+            puzzle_with_options,
+            difficulty=difficulty_profile.overall,
+            difficulty_profile=difficulty_profile,
         )
 
 

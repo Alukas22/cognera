@@ -69,6 +69,30 @@ class SkillProfile:
 
 
 @dataclass(frozen=True)
+class DifficultyProfile:
+    """Multi-dimensional cognitive difficulty estimate for a puzzle."""
+
+    overall: float
+    working_memory: float
+    pattern_complexity: float
+    visual_complexity: float
+    rule_complexity: float
+    abstraction: float
+    distractor_strength: float
+
+    def as_dict(self) -> dict[str, float]:
+        return {
+            "overall": self.overall,
+            "working_memory": self.working_memory,
+            "pattern_complexity": self.pattern_complexity,
+            "visual_complexity": self.visual_complexity,
+            "rule_complexity": self.rule_complexity,
+            "abstraction": self.abstraction,
+            "distractor_strength": self.distractor_strength,
+        }
+
+
+@dataclass(frozen=True)
 class Rule:
     """A reasoning rule used to generate or explain a matrix puzzle."""
 
@@ -126,6 +150,7 @@ class MatrixPuzzle:
     explanation: str = ""
     options: tuple[AnswerOption, ...] = ()
     correct_index: int = 0
+    difficulty_profile: DifficultyProfile | None = None
 
     @property
     def solution(self) -> Figure:

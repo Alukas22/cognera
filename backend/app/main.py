@@ -155,6 +155,7 @@ def _serialize_puzzle(puzzle):
         "correct_index": puzzle.correct_index,
         "rules": [_serialize_rule(rule) for rule in puzzle.rules],
         "difficulty": puzzle.difficulty,
+        "difficulty_profile": puzzle.difficulty_profile.as_dict() if puzzle.difficulty_profile is not None else None,
         "explanation": puzzle.explanation,
     }
 
@@ -183,6 +184,7 @@ async def matrix_demo() -> dict:
         "explanation": explanation_text,
         "skills": puzzle.skill_profile.as_dict(),
         "difficulty": puzzle.difficulty,
+        "difficulty_profile": puzzle.difficulty_profile.as_dict() if puzzle.difficulty_profile is not None else None,
     }
 
 

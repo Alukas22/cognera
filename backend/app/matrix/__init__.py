@@ -7,6 +7,7 @@ matrices, applying rule definitions, and explaining generated puzzles.
 from .models import (
     AnswerOption,
     CognitiveSkill,
+    DifficultyProfile,
     Distractor,
     DistractorReason,
     Figure,
@@ -16,13 +17,16 @@ from .models import (
     SkillProfile,
 )
 from .answer_options import AnswerOptionEngine
-from .rule_engine import DifficultyEngine, MatrixGenerator, RuleRegistry, RuleConstraintEngine, BaseRule
+from .difficulty_engine import CognitiveDifficultyEngine, DifficultyEngine
+from .rule_engine import MatrixGenerator, RuleRegistry, RuleConstraintEngine, BaseRule
 from .explainer import explain_puzzle
 
 __all__ = [
     "AnswerOption",
     "AnswerOptionEngine",
     "CognitiveSkill",
+    "CognitiveDifficultyEngine",
+    "DifficultyProfile",
     "Distractor",
     "DistractorReason",
     "Figure",

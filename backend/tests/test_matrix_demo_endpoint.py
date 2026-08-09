@@ -25,6 +25,8 @@ def test_matrix_demo_endpoint_returns_playable_puzzle() -> None:
     assert "skills" in payload
     assert payload["skills"]["MENTAL_ROTATION"] == 0.95
     assert payload["skills"]["VISUAL_PATTERN_RECOGNITION"] == 0.8
+    assert "difficulty_profile" in payload
+    assert payload["difficulty_profile"]["overall"] == payload["difficulty"]
 
 
 def test_matrix_demo_endpoint_is_deterministic() -> None:
@@ -63,6 +65,16 @@ def test_matrix_generate_endpoint_returns_expected_schema() -> None:
     assert all(set(rule) == {"type", "value", "difficulty"} for rule in payload["rules"])
     assert isinstance(payload["difficulty"], float)
     assert 0.0 <= payload["difficulty"] <= 1.0
+    assert set(payload["difficulty_profile"]) == {
+        "overall",
+        "working_memory",
+        "pattern_complexity",
+        "visual_complexity",
+        "rule_complexity",
+        "abstraction",
+        "distractor_strength",
+    }
+    assert payload["difficulty_profile"]["overall"] == payload["difficulty"]
     assert isinstance(payload["explanation"], str)
     assert payload["explanation"]
 
