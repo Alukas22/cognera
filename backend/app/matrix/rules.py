@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, ClassVar
 
-from .models import CognitiveSkill, Figure, MatrixPuzzle, Rule, RuleType, SkillProfile
+from .models import CognitiveSkill, Distractor, DistractorReason, Figure, MatrixPuzzle, Rule, RuleType, SkillProfile
 
 
 SHAPES = ["triangle", "square", "circle", "diamond"]
@@ -20,6 +20,120 @@ MISSING_ROW = 2
 MISSING_COL = 2
 
 
+def _merge_figure(
+    base: Figure,
+    generated: Figure,
+    replace_shape: bool = False,
+    replace_rotation: bool = False,
+    replace_size: bool = False,
+    replace_color: bool = False,
+) -> Figure:
+    return Figure(
+        shape=generated.shape if replace_shape else base.shape,
+        rotation=generated.rotation if replace_rotation else base.rotation,
+        size=generated.size if replace_size else base.size,
+        color=generated.color if replace_color else base.color,
+    )
+
+
+def _overlay_puzzle(
+    puzzle: MatrixPuzzle,
+    generated: MatrixPuzzle,
+    replace_shape: bool = False,
+    replace_rotation: bool = False,
+    replace_size: bool = False,
+    replace_color: bool = False,
+) -> MatrixPuzzle:
+    grid: list[list[Figure | None]] = []
+    for row in range(3):
+        row_cells: list[Figure | None] = []
+        for col in range(3):
+            cell = puzzle.grid[row][col]
+            if cell is None:
+                row_cells.append(None)
+                continue
+            row_cells.append(
+                _merge_figure(
+                    cell,
+                    generated.grid[row][col],
+                    replace_shape=replace_shape,
+                    replace_rotation=replace_rotation,
+                    replace_size=replace_size,
+                    replace_color=replace_color,
+                )
+            )
+        grid.append(row_cells)
+
+    correct_answer = _merge_figure(
+        puzzle.correct_answer,
+        generated.correct_answer,
+        replace_shape=replace_shape,
+        replace_rotation=replace_rotation,
+        replace_size=replace_size,
+        replace_color=replace_color,
+    )
+
+    transformed_distractors: list[Distractor] = []
+    for distractor in puzzle.distractors:
+        transformed_figure = _merge_figure(
+            distractor.figure,
+            generated.correct_answer,
+            replace_shape=replace_shape,
+            replace_rotation=replace_rotation,
+            replace_size=replace_size,
+            replace_color=replace_color,
+        )
+        transformed_distractors.append(copy_distractor(distractor, transformed_figure))
+
+    return MatrixPuzzle(
+        seed=puzzle.seed,
+        rules=puzzle.rules,
+        grid=tuple(tuple(cell for cell in row) for row in grid),
+        correct_answer=correct_answer,
+        distractors=tuple(transformed_distractors),
+        skill_profile=puzzle.skill_profile,
+    )
+
+
+def make_distractor(
+    figure: Figure,
+    reason: DistractorReason,
+    explanation: str,
+    origin_rule: RuleType,
+) -> Distractor:
+    return Distractor(
+        figure=figure,
+        reason=reason,
+        explanation=explanation,
+        origin_rule=origin_rule,
+    )
+
+
+def copy_distractor(distractor: Distractor, figure: Figure) -> Distractor:
+    return Distractor(
+        figure=figure,
+        reason=distractor.reason,
+        explanation=distractor.explanation,
+        origin_rule=distractor.origin_rule,
+    )
+
+
+def _merge_figure(
+    base: Figure,
+    generated: Figure,
+    replace_shape: bool = False,
+    replace_rotation: bool = False,
+    replace_size: bool = False,
+    replace_color: bool = False,
+) -> Figure:
+    return Figure(
+        shape=generated.shape if replace_shape else base.shape,
+        rotation=generated.rotation if replace_rotation else base.rotation,
+        size=generated.size if replace_size else base.size,
+        color=generated.color if replace_color else base.color,
+    )
+
+
 class BaseRule(ABC):
     """Abstract base class for a puzzle reasoning rule."""
 
@@ -27,8 +141,10 @@ class BaseRule(ABC):
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
+        if getattr(cls, "_register", True) is False:
+            return
         rule_type = getattr(cls, "rule_type", None)
-        if rule_type is not None:
+        if rule_type is not None and not isinstance(rule_type, property):
             cls.registry[rule_type] = cls
 
     @property
@@ -51,6 +167,10 @@ class BaseRule(ABC):
     @abstractmethod
     def difficulty(self) -> float:
         """Return the difficulty rating for this rule."""
+
+    @abstractmethod
+    def overlay(self, puzzle: MatrixPuzzle, seed: int) -> MatrixPuzzle:
+        """Overlay this rule onto an existing puzzle."""
 
 
 class RotationRule(BaseRule):
@@ -101,11 +221,19 @@ class RotationRule(BaseRule):
         distractor_rotations = [rotation for rotation in ROTATIONS if rotation != correct_rotation]
         rng.shuffle(distractor_rotations)
         distractors = tuple(
-            Figure(
-                shape=base_shape,
-                rotation=rotation,
-                size=base_size,
-                color=base_color,
+            make_distractor(
+                figure=Figure(
+                    shape=base_shape,
+                    rotation=rotation,
+                    size=base_size,
+                    color=base_color,
+                ),
+                reason=DistractorReason.WRONG_ROTATION,
+                explanation=(
+                    "This option is rotated incorrectly compared to the "
+                    "matrix progression."
+                ),
+                origin_rule=RuleType.ROTATION,
             )
             for rotation in distractor_rotations[:ANSWER_ALTERNATIVES - 1]
         )
@@ -168,6 +296,10 @@ class RotationRule(BaseRule):
     def difficulty(self) -> float:
         return 1.0
 
+    def overlay(self, puzzle: MatrixPuzzle, seed: int) -> MatrixPuzzle:
+        generated = self.generate(seed)
+        return _overlay_puzzle(puzzle, generated, replace_rotation=True)
+
 
 class CountRule(BaseRule):
     """Count rule plugin implementation."""
@@ -219,11 +351,19 @@ class CountRule(BaseRule):
         )
 
         distractors = tuple(
-            Figure(
-                shape=shape,
-                rotation=base_rotation,
-                size=base_size,
-                color=base_color,
+            make_distractor(
+                figure=Figure(
+                    shape=shape,
+                    rotation=base_rotation,
+                    size=base_size,
+                    color=base_color,
+                ),
+                reason=DistractorReason.WRONG_COUNT,
+                explanation=(
+                    "This option contains the wrong number of target shapes "
+                    "for the row."
+                ),
+                origin_rule=RuleType.COUNT,
             )
             for shape in filler_shapes[:ANSWER_ALTERNATIVES - 1]
         )
@@ -275,6 +415,10 @@ class CountRule(BaseRule):
     def difficulty(self) -> float:
         return 0.8
 
+    def overlay(self, puzzle: MatrixPuzzle, seed: int) -> MatrixPuzzle:
+        generated = self.generate(seed)
+        return _overlay_puzzle(puzzle, generated, replace_shape=True)
+
 
 class ShapeRule(BaseRule):
     """Shape rule plugin implementation."""
@@ -320,11 +464,19 @@ class ShapeRule(BaseRule):
         )
 
         distractors = tuple(
-            Figure(
-                shape=shape,
-                rotation=base_rotation,
-                size=base_size,
-                color=base_color,
+            make_distractor(
+                figure=Figure(
+                    shape=shape,
+                    rotation=base_rotation,
+                    size=base_size,
+                    color=base_color,
+                ),
+                reason=DistractorReason.WRONG_SHAPE,
+                explanation=(
+                    "This option uses a different shape than the correct "
+                    "matrix progression."
+                ),
+                origin_rule=RuleType.SHAPE,
             )
             for shape in SHAPES
             if shape != correct_answer.shape
@@ -378,6 +530,10 @@ class ShapeRule(BaseRule):
     def difficulty(self) -> float:
         return 0.7
 
+    def overlay(self, puzzle: MatrixPuzzle, seed: int) -> MatrixPuzzle:
+        generated = self.generate(seed)
+        return _overlay_puzzle(puzzle, generated, replace_size=True)
+
 
 class SizeRule(BaseRule):
     """Size rule plugin implementation."""
@@ -425,11 +581,19 @@ class SizeRule(BaseRule):
         available_sizes = [size for size in SIZES if size != correct_answer.size]
         distractor_sizes = (available_sizes * 2)[:ANSWER_ALTERNATIVES - 1]
         distractors = tuple(
-            Figure(
-                shape=base_shape,
-                rotation=base_rotation,
-                size=size,
-                color=base_color,
+            make_distractor(
+                figure=Figure(
+                    shape=base_shape,
+                    rotation=base_rotation,
+                    size=size,
+                    color=base_color,
+                ),
+                reason=DistractorReason.PARTIAL_PATTERN,
+                explanation=(
+                    "This option contains the wrong size progression "
+                    "for the matrix column."
+                ),
+                origin_rule=RuleType.SIZE,
             )
             for size in distractor_sizes
         )
@@ -482,6 +646,10 @@ class SizeRule(BaseRule):
     def difficulty(self) -> float:
         return 0.75
 
+    def overlay(self, puzzle: MatrixPuzzle, seed: int) -> MatrixPuzzle:
+        generated = self.generate(seed)
+        return _overlay_puzzle(puzzle, generated, replace_shape=True)
+
 
 class PositionRule(BaseRule):
     """Position rule plugin implementation."""
@@ -528,11 +696,19 @@ class PositionRule(BaseRule):
         )
 
         distractors = tuple(
-            Figure(
-                shape=filler_shape,
-                rotation=base_rotation,
-                size=base_size,
-                color=base_color,
+            make_distractor(
+                figure=Figure(
+                    shape=filler_shape,
+                    rotation=base_rotation,
+                    size=base_size,
+                    color=base_color,
+                ),
+                reason=DistractorReason.WRONG_POSITION,
+                explanation=(
+                    "This option places the special figure in the wrong "
+                    "position."
+                ),
+                origin_rule=RuleType.POSITION,
             )
             for _ in range(ANSWER_ALTERNATIVES - 1)
         )
@@ -586,6 +762,10 @@ class PositionRule(BaseRule):
 
     def difficulty(self) -> float:
         return 0.85
+
+    def overlay(self, puzzle: MatrixPuzzle, seed: int) -> MatrixPuzzle:
+        generated = self.generate(seed)
+        return _overlay_puzzle(puzzle, generated, replace_shape=True)
 
 
 class MirrorRule(BaseRule):
@@ -660,11 +840,18 @@ class MirrorRule(BaseRule):
             )
 
         distractors = tuple(
-            Figure(
-                shape=rng.choice([shape for shape in SHAPES if shape != correct_answer.shape]),
-                rotation=base_rotation,
-                size=base_size,
-                color=base_color,
+            make_distractor(
+                figure=Figure(
+                    shape=rng.choice([shape for shape in SHAPES if shape != correct_answer.shape]),
+                    rotation=base_rotation,
+                    size=base_size,
+                    color=base_color,
+                ),
+                reason=DistractorReason.PARTIAL_PATTERN,
+                explanation=(
+                    "This option does not follow the mirror symmetry pattern."
+                ),
+                origin_rule=RuleType.MIRROR,
             )
             for _ in range(ANSWER_ALTERNATIVES - 1)
         )
@@ -730,6 +917,10 @@ class MirrorRule(BaseRule):
     def difficulty(self) -> float:
         return 0.9
 
+    def overlay(self, puzzle: MatrixPuzzle, seed: int) -> MatrixPuzzle:
+        generated = self.generate(seed)
+        return _overlay_puzzle(puzzle, generated, replace_shape=True)
+
 
 class ColorRule(BaseRule):
     """Placeholder for future color rule implementation."""
@@ -747,3 +938,6 @@ class ColorRule(BaseRule):
 
     def difficulty(self) -> float:
         return 0.0
+
+    def overlay(self, puzzle: MatrixPuzzle, seed: int) -> MatrixPuzzle:
+        raise NotImplementedError
