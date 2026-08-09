@@ -112,6 +112,19 @@ def _serve_frontend_index() -> FileResponse:
     raise HTTPException(status_code=503, detail="Frontend build is not available in runtime image.")
 
 
+def _first_known(*values: str | None) -> str:
+    for value in values:
+        if value is None:
+            continue
+        normalized = value.strip()
+        if not normalized:
+            continue
+        if normalized.lower() in {"unknown", "none", "null"}:
+            continue
+        return normalized
+    return "unknown"
+
+
 @app.get("/")
 async def read_root():
     logger.info("endpoint.root", extra={"path": "/"})
@@ -133,19 +146,26 @@ async def health() -> dict[str, str]:
 @app.get("/version")
 async def version() -> dict[str, str]:
     logger.info("endpoint.version", extra={"path": "/version"})
-    commit_sha = (
-        os.getenv("GIT_COMMIT_SHA")
-        or os.getenv("RAILWAY_GIT_COMMIT_SHA")
-        or os.getenv("SOURCE_VERSION")
-        or "unknown"
+    commit_sha = _first_known(
+        os.getenv("GIT_COMMIT_SHA"),
+        os.getenv("RAILWAY_GIT_COMMIT_SHA"),
+        os.getenv("RAILWAY_GIT_COMMIT_HASH"),
+        os.getenv("VERCEL_GIT_COMMIT_SHA"),
+        os.getenv("SOURCE_VERSION"),
+        os.getenv("GITHUB_SHA"),
     )
-    git_branch = (
-        os.getenv("GIT_BRANCH")
-        or os.getenv("RAILWAY_GIT_BRANCH")
-        or os.getenv("VERCEL_GIT_COMMIT_REF")
-        or "unknown"
+    git_branch = _first_known(
+        os.getenv("GIT_BRANCH"),
+        os.getenv("RAILWAY_GIT_BRANCH"),
+        os.getenv("RAILWAY_BRANCH"),
+        os.getenv("VERCEL_GIT_COMMIT_REF"),
+        os.getenv("GITHUB_REF_NAME"),
     )
-    build_timestamp = os.getenv("BUILD_TIMESTAMP") or "unknown"
+    build_timestamp = _first_known(
+        os.getenv("BUILD_TIMESTAMP"),
+        os.getenv("RAILWAY_DEPLOYMENT_CREATED_AT"),
+        os.getenv("RAILWAY_DEPLOYMENT_TRIGGERED_AT"),
+    )
 
     return {
         "app_name": config.app_name,
