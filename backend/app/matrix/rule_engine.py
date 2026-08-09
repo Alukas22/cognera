@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import inspect
 import random
+from itertools import combinations, permutations
 from typing import Iterable
 
 from .models import Figure, MatrixPuzzle, Rule, SkillProfile
-from .rules import BaseRule, RuleType
+from .rules import BaseRule, MISSING_COL, MISSING_ROW, RuleType
 
 
 SHAPE_RULE_TYPES = {
@@ -16,6 +17,126 @@ SHAPE_RULE_TYPES = {
     RuleType.POSITION,
     RuleType.MIRROR,
 }
+
+
+class RuleConstraintEngine:
+    """Validate rule combinations for compatibility before generation."""
+
+    def __init__(self, sample_seeds: tuple[int, ...] = tuple(range(20))) -> None:
+        self.sample_seeds = sample_seeds
+        self.validation_reasons: list[str] = []
+        self.validated_rules: list[BaseRule] = []
+
+    def validate_rules(self, rules: list[BaseRule]) -> bool:
+        self.validation_reasons = []
+        self.validated_rules = []
+
+        if not rules:
+            self.validation_reasons.append("No rules provided.")
+            return False
+
+        duplicates = self._find_duplicates(rules)
+        if duplicates:
+            self.validation_reasons.append(
+                f"Duplicate rule types are not allowed: {', '.join(sorted(duplicates))}."
+            )
+            return False
+
+        valid_order = self._find_compatible_order(rules)
+        if valid_order is None:
+            if not self.validation_reasons:
+                self.validation_reasons.append("No compatible rule ordering found.")
+            return False
+
+        self.validated_rules = valid_order
+        return True
+
+    def _find_duplicates(self, rules: list[BaseRule]) -> set[str]:
+        seen: set[RuleType] = set()
+        duplicates: set[str] = set()
+        for rule in rules:
+            if rule.rule_type in seen:
+                duplicates.add(rule.rule_type.value)
+            else:
+                seen.add(rule.rule_type)
+        return duplicates
+
+    def _find_compatible_order(self, rules: list[BaseRule]) -> list[BaseRule] | None:
+        for order in permutations(rules):
+            result, reason = self._validate_order(list(order))
+            if result:
+                return list(order)
+            if reason:
+                self.validation_reasons.append(reason)
+        return None
+
+    def _validate_order(self, rules: list[BaseRule]) -> tuple[bool, str | None]:
+        names = ", ".join(rule.rule_type.value for rule in rules)
+        for seed in self.sample_seeds:
+            try:
+                composite = CompositeRule(rules)
+                puzzle = composite.generate(seed)
+            except Exception as exc:
+                continue
+
+            if not composite.validate(puzzle.grid):
+                continue
+
+            ambiguous_reason = self._check_ambiguous_answer(composite, puzzle)
+            if ambiguous_reason is not None:
+                return False, f"Rule ordering [{names}] is ambiguous: {ambiguous_reason}"
+
+            return True, None
+
+        return False, f"Rule ordering [{names}] produced no valid puzzle in sampled seeds."
+
+    def _check_ambiguous_answer(self, composite: CompositeRule, puzzle: MatrixPuzzle) -> str | None:
+        missing_row, missing_col = 2, 2
+        for distractor in puzzle.distractors:
+            grid = [list(row) for row in puzzle.grid]
+            grid[missing_row][missing_col] = distractor.figure
+            if composite.validate(tuple(tuple(row) for row in grid)):
+                return "A distractor also satisfies the composite rule set."
+        return None
+
+
+class DifficultyEngine:
+    """Deterministic difficulty scoring for generated puzzles."""
+
+    MAX_INTERACTION_BONUS = 0.25
+    BASE_PAIR_BONUS = 0.04
+
+    @classmethod
+    def score(cls, puzzle: MatrixPuzzle) -> float:
+        if not puzzle.rules:
+            return 0.0
+
+        base_score = sum(rule.difficulty for rule in puzzle.rules) / len(puzzle.rules)
+        interaction_score = cls._interaction_bonus(puzzle.rules)
+        return min(1.0, max(0.0, base_score + interaction_score))
+
+    @classmethod
+    def _interaction_bonus(cls, rules: tuple[Rule, ...]) -> float:
+        if len(rules) < 2:
+            return 0.0
+
+        bonus = 0.0
+        for first, second in combinations(rules, 2):
+            bonus += cls._pair_bonus(first, second)
+        return min(cls.MAX_INTERACTION_BONUS, bonus)
+
+    @classmethod
+    def _pair_bonus(cls, first: Rule, second: Rule) -> float:
+        bonus = cls.BASE_PAIR_BONUS
+        if first.type == RuleType.ROTATION or second.type == RuleType.ROTATION:
+            bonus += 0.01
+        if first.type in SHAPE_RULE_TYPES and second.type in SHAPE_RULE_TYPES:
+            bonus += 0.01
+        if {first.type, second.type} == {RuleType.POSITION, RuleType.COUNT}:
+            bonus += 0.02
+        if {first.type, second.type} == {RuleType.POSITION, RuleType.MIRROR}:
+            bonus += 0.02
+        return bonus
 
 
 class RuleRegistry:
@@ -50,92 +171,28 @@ class CompositeRule(BaseRule):
         raise NotImplementedError("CompositeRule is not a registered standalone rule.")
 
     def generate(self, seed: int) -> MatrixPuzzle:
-        puzzles = [rule.generate(seed=seed + index + 1) for index, rule in enumerate(self.rules)]
-        combined_grid: list[list[Figure | None]] = [list(row) for row in puzzles[0].grid]
+        if not self.rules:
+            raise ValueError("CompositeRule requires at least one rule.")
 
-        def apply_rule_to_grid(rule: BaseRule, puzzle: MatrixPuzzle) -> None:
-            for row in range(3):
-                for col in range(3):
-                    if combined_grid[row][col] is None:
-                        continue
-                    if rule.rule_type == RuleType.ROTATION:
-                        combined_grid[row][col] = Figure(
-                            shape=combined_grid[row][col].shape,
-                            rotation=puzzle.grid[row][col].rotation,
-                            size=combined_grid[row][col].size,
-                            color=combined_grid[row][col].color,
-                        )
-                    elif rule.rule_type == RuleType.SIZE:
-                        combined_grid[row][col] = Figure(
-                            shape=combined_grid[row][col].shape,
-                            rotation=combined_grid[row][col].rotation,
-                            size=puzzle.grid[row][col].size,
-                            color=combined_grid[row][col].color,
-                        )
-                    elif rule.rule_type in {RuleType.SHAPE, RuleType.COUNT, RuleType.POSITION, RuleType.MIRROR}:
-                        combined_grid[row][col] = Figure(
-                            shape=puzzle.grid[row][col].shape,
-                            rotation=combined_grid[row][col].rotation,
-                            size=combined_grid[row][col].size,
-                            color=combined_grid[row][col].color,
-                        )
+        first_rule = self.rules[0]
+        puzzle = first_rule.generate(seed)
+        generated_rules = [puzzle.rules[0]]
+        skill_profiles = [puzzle.skill_profile]
 
-        for rule, puzzle in zip(self.rules[1:], puzzles[1:]):
-            apply_rule_to_grid(rule, puzzle)
+        for index, rule in enumerate(self.rules[1:], start=1):
+            puzzle = rule.overlay(puzzle, seed + index)
+            generated = rule.generate(seed + index)
+            generated_rules.append(generated.rules[0])
+            skill_profiles.append(generated.skill_profile)
 
-        final_correct_answer = puzzles[0].correct_answer
-        for rule, puzzle in zip(self.rules[1:], puzzles[1:]):
-            if rule.rule_type == RuleType.ROTATION:
-                final_correct_answer = Figure(
-                    shape=final_correct_answer.shape,
-                    rotation=puzzle.correct_answer.rotation,
-                    size=final_correct_answer.size,
-                    color=final_correct_answer.color,
-                )
-            elif rule.rule_type == RuleType.SIZE:
-                final_correct_answer = Figure(
-                    shape=final_correct_answer.shape,
-                    rotation=final_correct_answer.rotation,
-                    size=puzzle.correct_answer.size,
-                    color=final_correct_answer.color,
-                )
-            elif rule.rule_type in {RuleType.SHAPE, RuleType.COUNT, RuleType.POSITION, RuleType.MIRROR}:
-                final_correct_answer = Figure(
-                    shape=puzzle.correct_answer.shape,
-                    rotation=final_correct_answer.rotation,
-                    size=final_correct_answer.size,
-                    color=final_correct_answer.color,
-                )
-
-        distractor_pool: list[Figure] = []
-        for puzzle in puzzles:
-            distractor_pool.extend(puzzle.distractors)
-        unique_distractors = []
-        seen = set()
-        for distractor in distractor_pool:
-            key = (distractor.shape, distractor.rotation, distractor.size, distractor.color)
-            if key not in seen and distractor != final_correct_answer:
-                seen.add(key)
-                unique_distractors.append(distractor)
-        while len(unique_distractors) < 3:
-            unique_distractors.append(
-                Figure(
-                    shape=final_correct_answer.shape,
-                    rotation=(final_correct_answer.rotation + 90 * len(unique_distractors)) % 360,
-                    size=final_correct_answer.size,
-                    color=final_correct_answer.color,
-                )
-            )
-
-        combined_skill_profile = SkillProfile.combine([p.skill_profile for p in puzzles])
-        combined_rules = tuple(p.rules[0] for p in puzzles)
+        combined_skill_profile = SkillProfile.combine(skill_profiles)
 
         return MatrixPuzzle(
             seed=seed,
-            rules=combined_rules,
-            grid=tuple(tuple(cell for cell in row) for row in combined_grid),
-            correct_answer=final_correct_answer,
-            distractors=tuple(unique_distractors[:3]),
+            rules=tuple(generated_rules),
+            grid=puzzle.grid,
+            correct_answer=puzzle.correct_answer,
+            distractors=puzzle.distractors,
             skill_profile=combined_skill_profile,
         )
 
@@ -148,6 +205,12 @@ class CompositeRule(BaseRule):
     def difficulty(self) -> float:
         return sum(rule.difficulty() for rule in self.rules) / max(len(self.rules), 1)
 
+    def overlay(self, puzzle: MatrixPuzzle, seed: int) -> MatrixPuzzle:
+        result = puzzle
+        for index, rule in enumerate(self.rules):
+            result = rule.overlay(result, seed + index)
+        return result
+
 
 class MatrixGenerator:
     """Generator that delegates puzzle creation to a rule plugin."""
@@ -159,6 +222,7 @@ class MatrixGenerator:
         else:
             self.registry = None
             self.rule = rule_or_registry
+        self.constraint_engine = RuleConstraintEngine()
 
     def generate(self, seed: int) -> MatrixPuzzle:
         if self.rule is not None:
@@ -166,11 +230,17 @@ class MatrixGenerator:
 
         available_rules = sorted(self.registry.available(), key=lambda rule_type: rule_type.value)
         rng = random.Random(seed)
-        selection_count = rng.randint(2, min(4, len(available_rules)))
-        selected_types = rng.sample(available_rules, selection_count)
-        selected_rules = [self.registry.get(rule_type) for rule_type in selected_types]
-        composite = CompositeRule(selected_rules)
-        return composite.generate(seed)
+
+        for selection_count in range(2, min(4, len(available_rules)) + 1):
+            for rule_types in combinations(available_rules, selection_count):
+                selected_rules = [self.registry.get(rule_type) for rule_type in rule_types]
+                if self.constraint_engine.validate_rules(selected_rules):
+                    composite = CompositeRule(self.constraint_engine.validated_rules)
+                    return composite.generate(seed)
+
+        raise ValueError(
+            "No valid rule combination could be found from available rules."
+        )
 
 
 def discover_rules() -> Iterable[type[BaseRule]]:

@@ -19,6 +19,18 @@ class RuleType(str, Enum):
     COLOR = "color"
 
 
+class DistractorReason(str, Enum):
+    """Reason categories for generated distractors."""
+
+    WRONG_ROTATION = "WRONG_ROTATION"
+    WRONG_COUNT = "WRONG_COUNT"
+    WRONG_POSITION = "WRONG_POSITION"
+    WRONG_COLOR = "WRONG_COLOR"
+    WRONG_SHAPE = "WRONG_SHAPE"
+    PARTIAL_PATTERN = "PARTIAL_PATTERN"
+    MIRROR_INSTEAD_OF_ROTATION = "MIRROR_INSTEAD_OF_ROTATION"
+
+
 class CognitiveSkill(str, Enum):
     """Cognitive skill categories associated with each puzzle."""
 
@@ -66,6 +78,16 @@ class Rule:
 
 
 @dataclass(frozen=True)
+class Distractor:
+    """An incorrect answer option with its reasoning metadata."""
+
+    figure: Figure
+    reason: DistractorReason
+    explanation: str
+    origin_rule: RuleType
+
+
+@dataclass(frozen=True)
 class Figure:
     """A structured figure representation for Raven-style matrix generation."""
 
@@ -83,5 +105,5 @@ class MatrixPuzzle:
     rules: tuple[Rule, ...]
     grid: tuple[tuple[Figure | None, ...], ...]
     correct_answer: Figure
-    distractors: tuple[Figure, ...]
+    distractors: tuple[Distractor, ...]
     skill_profile: SkillProfile

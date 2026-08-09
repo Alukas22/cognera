@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import AppConfig
 from .database import prepare_database_connection
-from .matrix import RuleRegistry, MatrixGenerator, RuleType, explain_puzzle
+from .matrix import DifficultyEngine, RuleRegistry, MatrixGenerator, RuleType, explain_puzzle
 
 config = AppConfig()
 
@@ -100,6 +100,18 @@ def _serialize_figure(figure):
     }
 
 
+def _serialize_distractor(distractor):
+    return {
+        "shape": distractor.figure.shape,
+        "rotation": distractor.figure.rotation,
+        "size": distractor.figure.size,
+        "color": distractor.figure.color,
+        "reason": distractor.reason.value,
+        "explanation": distractor.explanation,
+        "origin_rule": distractor.origin_rule.value,
+    }
+
+
 @app.get("/matrix/demo")
 async def matrix_demo() -> dict:
     logger.info("endpoint.matrix_demo", extra={"path": "/matrix/demo"})
@@ -110,10 +122,10 @@ async def matrix_demo() -> dict:
     explanation_text = explain_puzzle(puzzle)
 
     options = [
-        _serialize_figure(puzzle.distractors[0]),
+        _serialize_distractor(puzzle.distractors[0]),
         _serialize_figure(puzzle.correct_answer),
-        _serialize_figure(puzzle.distractors[1]),
-        _serialize_figure(puzzle.distractors[2]),
+        _serialize_distractor(puzzle.distractors[1]),
+        _serialize_distractor(puzzle.distractors[2]),
     ]
 
     return {
@@ -125,4 +137,5 @@ async def matrix_demo() -> dict:
         "correct": 1,
         "explanation": explanation_text,
         "skills": puzzle.skill_profile.as_dict(),
+        "difficulty": DifficultyEngine.score(puzzle),
     }
