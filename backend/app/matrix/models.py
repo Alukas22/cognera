@@ -28,11 +28,21 @@ class Rule:
 
 
 @dataclass(frozen=True)
+class Figure:
+    """A structured figure representation for Raven-style matrix generation."""
+
+    shape: str
+    rotation: int
+    size: str
+    color: str
+
+
+@dataclass(frozen=True)
 class MatrixPuzzle:
     """Canonical representation of a generated Raven-style matrix puzzle."""
 
     seed: int
     rules: tuple[Rule, ...]
-    grid: tuple[tuple[str, ...], ...]
-    correct_answer: str
-    distractors: tuple[str, ...]
+    grid: tuple[tuple[Figure | None, ...], ...]
+    correct_answer: Figure
+    distractors: tuple[Figure, ...]

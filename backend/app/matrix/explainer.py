@@ -2,20 +2,24 @@
 
 from __future__ import annotations
 
-from .models import MatrixPuzzle
+from .models import MatrixPuzzle, RuleType
 
 
 def explain_puzzle(puzzle: MatrixPuzzle) -> str:
-    """Produce a simple explanation for the generated puzzle."""
+    """Produce a plain-English explanation for the generated puzzle."""
 
-    rule_descriptions = []
-    for rule in puzzle.rules:
-        rule_descriptions.append(
-            f"{rule.type.value.title()}: {rule.value} (difficulty {rule.difficulty:.1f})"
+    if not puzzle.rules:
+        return "No rules are available for this puzzle."
+
+    rule = puzzle.rules[0]
+    if rule.type == RuleType.ROTATION:
+        return (
+            f"The figure rotates {rule.value} in each step from left to right, "
+            "top to bottom. The missing cell continues the same rotation pattern "
+            f"to become {puzzle.correct_answer.rotation} degrees."
         )
 
     return (
-        "This puzzle was generated with the following rules:\n"
-        f"{chr(10).join(rule_descriptions)}\n"
-        "The correct answer follows the rule combination and matches the generated matrix pattern."
+        "This puzzle follows the configured rules. "
+        "The correct answer matches the pattern of the visible cells."
     )
