@@ -40,6 +40,21 @@ class SkillProfile:
     def as_dict(self) -> dict[str, float]:
         return {skill.value: value for skill, value in self.skills.items()}
 
+    @classmethod
+    def combine(cls, profiles: list["SkillProfile"]) -> "SkillProfile":
+        combined: dict[CognitiveSkill, float] = {}
+        counts: dict[CognitiveSkill, int] = {}
+        for profile in profiles:
+            for skill, value in profile.skills.items():
+                combined[skill] = combined.get(skill, 0.0) + value
+                counts[skill] = counts.get(skill, 0) + 1
+
+        averaged = {
+            skill: combined[skill] / counts[skill]
+            for skill in combined
+        }
+        return cls(skills=averaged)
+
 
 @dataclass(frozen=True)
 class Rule:

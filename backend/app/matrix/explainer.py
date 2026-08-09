@@ -11,6 +11,9 @@ def explain_puzzle(puzzle: MatrixPuzzle) -> str:
     if not puzzle.rules:
         return "No rules are available for this puzzle."
 
+    if len(puzzle.rules) > 1:
+        return " ".join(rule.type.value.capitalize() + ": " + rule.value for rule in puzzle.rules)
+
     rule = puzzle.rules[0]
     if rule.type == RuleType.ROTATION:
         return (

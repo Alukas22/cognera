@@ -44,3 +44,24 @@ def test_rotation_rule_produces_skill_profile() -> None:
     assert skills["MENTAL_ROTATION"] == 0.95
     assert skills["VISUAL_PATTERN_RECOGNITION"] == 0.8
     assert all(0.0 <= value <= 1.0 for value in skills.values())
+
+
+def test_matrix_generator_composes_multiple_rules() -> None:
+    registry = RuleRegistry()
+    puzzle = MatrixGenerator(registry).generate(seed=2024)
+
+    assert 2 <= len(puzzle.rules) <= 4
+    assert puzzle.skill_profile is not None
+    assert len(puzzle.skill_profile.skills) >= 1
+    assert puzzle.correct_answer is not None
+    assert all(cell is None or isinstance(cell, type(puzzle.correct_answer)) for row in puzzle.grid for cell in row)
+
+
+def test_composite_generation_is_deterministic() -> None:
+    registry = RuleRegistry()
+    generator = MatrixGenerator(registry)
+
+    first = generator.generate(seed=2024)
+    second = generator.generate(seed=2024)
+
+    assert first == second
