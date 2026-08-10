@@ -1,5 +1,21 @@
 # AI Agent Rules
 
+# Product Quality Governance
+
+- COGNERA_QUALITY_STANDARD.md is the highest-level product specification for Cognera.
+- The Quality Standard defines WHAT product we are building. The architecture documents define HOW we build it.
+- Before implementing any feature, identify which section(s) of COGNERA_QUALITY_STANDARD.md the feature supports.
+- Every implementation shall improve at least one of the following: reasoning quality, user trust, explainability, cognitive development, psychometric quality, commercial product quality.
+- If multiple technically correct implementations exist, prefer the one that best supports the long-term goals defined in COGNERA_QUALITY_STANDARD.md rather than the one with the lowest implementation cost.
+- If an implementation conflicts with the Quality Standard, the Quality Standard takes precedence unless an approved ADR explicitly states otherwise.
+- Features that do not improve the user's cognitive development experience should be questioned before implementation.
+- Every implementation report shall include a section named:
+
+	"Quality Standard Alignment"
+
+	describing which Quality Standard principles the implementation improves.
+- Every pull request and implementation report shall briefly explain how the change improves the commercial quality of Cognera.
+
 ## Purpose
 
 This document defines mandatory governance rules for all AI agents that analyze, generate, or modify assets in the Cognera repository. Its purpose is to ensure architectural integrity, puzzle-quality standards, engineering consistency, test reliability, and safe operational behavior across all contributor workflows.

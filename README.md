@@ -6,7 +6,7 @@ The future of cognitive performance.
 
 Cognera builds reasoning-first puzzle experiences that improve users' cognitive development through clear, explainable, and psychometrically meaningful challenge design.
 
-Product quality is governed by [docs/COGNERA_QUALITY_STANDARD.md](docs/COGNERA_QUALITY_STANDARD.md).
+The primary product vision and quality direction for Cognera is defined in [docs/COGNERA_QUALITY_STANDARD.md](docs/COGNERA_QUALITY_STANDARD.md).
 
 ## Project structure
 

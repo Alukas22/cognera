@@ -6,6 +6,16 @@ This index defines the canonical entry points to Cognera architecture knowledge.
 
 The objective is to make architectural intent discoverable, auditable, and actionable for engineers, reviewers, and AI agents operating in this repository.
 
+## Level 1 Governing Documents
+
+The following are Level 1 governing documents for the Cognera project:
+
+1. [docs/COGNERA_QUALITY_STANDARD.md](docs/COGNERA_QUALITY_STANDARD.md)
+2. [docs/architecture/SYSTEM_ARCHITECTURE.md](docs/architecture/SYSTEM_ARCHITECTURE.md)
+3. [docs/ENGINEERING_PRINCIPLES.md](docs/ENGINEERING_PRINCIPLES.md)
+
+The Quality Standard is the highest-level product specification and takes precedence for product-direction decisions unless an approved ADR explicitly states otherwise.
+
 ## Reading Order
 
 Read documents in the following order to build context from system-wide concepts to implementation constraints and quality rules:
