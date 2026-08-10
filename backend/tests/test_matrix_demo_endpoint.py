@@ -27,6 +27,16 @@ def test_matrix_demo_endpoint_returns_playable_puzzle() -> None:
     assert payload["skills"]["VISUAL_PATTERN_RECOGNITION"] == 0.8
 
 
+def test_matrix_demo_endpoint_can_return_swedish_explanation() -> None:
+    client = TestClient(app)
+    response = client.get("/matrix/demo?language=sv")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert "Regel" in payload["explanation"]
+    assert "Kolumn" in payload["explanation"]
+
+
 def test_matrix_demo_endpoint_is_deterministic() -> None:
     client = TestClient(app)
     first = client.get("/matrix/demo").json()

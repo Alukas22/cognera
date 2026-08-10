@@ -1,5 +1,5 @@
 import { fetchPuzzle, fetchSystemHealth } from "./api.js";
-import { createGameState, selectOption, setHealthData, setPuzzle } from "./game.js";
+import { createGameState, isWithinBeginnerProgressionBand, selectOption, setHealthData, setPuzzle } from "./game.js";
 import { createLogger } from "./logger.js";
 import { renderApp, renderHealthView } from "./ui.js";
 import "./styles.css";
@@ -55,8 +55,26 @@ async function loadPuzzle() {
   render();
 
   try {
-    const puzzle = await fetchPuzzle();
-    state = setPuzzle(state, puzzle);
+    const nextPuzzleNumber = state.puzzleNumber + 1;
+    const attemptLimit = nextPuzzleNumber <= 3 ? 10 : 6;
+    const uiLanguage = window.navigator.language ?? "en";
+    let bestPuzzle = null;
+
+    for (let attempt = 0; attempt < attemptLimit; attempt++) {
+      const seed = (nextPuzzleNumber * 1_000_003 + attempt * 7_919) % 1_000_000_000;
+      const puzzle = await fetchPuzzle(seed, uiLanguage);
+
+      if (bestPuzzle === null || puzzle.difficulty < bestPuzzle.difficulty) {
+        bestPuzzle = puzzle;
+      }
+
+      if (isWithinBeginnerProgressionBand(puzzle.difficulty, nextPuzzleNumber)) {
+        bestPuzzle = puzzle;
+        break;
+      }
+    }
+
+    state = setPuzzle(state, bestPuzzle);
   } catch (error) {
     logger.error("puzzle.load_failed", {
       message: error instanceof Error ? error.message : "Unknown error",

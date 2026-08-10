@@ -58,6 +58,24 @@ function normalizePuzzle(payload) {
   };
 }
 
+function getUiLanguage() {
+  if (typeof navigator === "undefined" || typeof navigator.language !== "string") {
+    return "en";
+  }
+
+  return navigator.language.toLowerCase().startsWith("sv") ? "sv" : "en";
+}
+
+function withQueryParams(path, params) {
+  const url = new URL(path, window.location.origin);
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== null && value !== undefined && value !== "") {
+      url.searchParams.set(key, String(value));
+    }
+  });
+  return `${url.pathname}${url.search}${url.hash}`;
+}
+
 function withApiBase(path) {
   const configured = import.meta.env.VITE_API_BASE_URL;
   if (!configured) {
@@ -109,7 +127,8 @@ async function requestJson(path, options = {}, timeoutMs = DEFAULT_TIMEOUT_MS) {
   }
 }
 
-export async function fetchPuzzle(seed = null) {
+export async function fetchPuzzle(seed = null, language = getUiLanguage()) {
+  const normalizedLanguage = language && language.toLowerCase().startsWith("sv") ? "sv" : "en";
   const requestBody = seed === null ? {} : { seed };
   try {
     const { json, durationMs } = await requestJson(
@@ -117,7 +136,7 @@ export async function fetchPuzzle(seed = null) {
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(requestBody),
+        body: JSON.stringify({ ...requestBody, language: normalizedLanguage }),
       },
       DEFAULT_TIMEOUT_MS
     );
@@ -130,7 +149,11 @@ export async function fetchPuzzle(seed = null) {
     logger.warn("api.fallback_demo", {
       reason: error instanceof Error ? error.message : "unknown",
     });
-    const { json, durationMs } = await requestJson(DEMO_ENDPOINT, {}, DEFAULT_TIMEOUT_MS);
+    const { json, durationMs } = await requestJson(
+      withQueryParams(DEMO_ENDPOINT, { language: normalizedLanguage }),
+      {},
+      DEFAULT_TIMEOUT_MS
+    );
     const normalized = normalizePuzzle(json);
     return {
       ...normalized,

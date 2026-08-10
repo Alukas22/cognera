@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   createGameState,
+  getBeginnerProgressionBand,
   getAccuracy,
   getAverageDifficulty,
+  isWithinBeginnerProgressionBand,
   resetSession,
   selectOption,
   setPuzzle,
@@ -73,5 +75,15 @@ describe("game state", () => {
     expect(state.totalAnswered).toBe(0);
     expect(state.puzzle).toBeNull();
     expect(state.puzzleNumber).toBe(0);
+  });
+
+  it("ramps difficulty bands upward during the beginner progression", () => {
+    const firstBand = getBeginnerProgressionBand(1);
+    const laterBand = getBeginnerProgressionBand(6);
+
+    expect(firstBand.min).toBeLessThan(laterBand.min);
+    expect(firstBand.max).toBeLessThan(laterBand.max);
+    expect(isWithinBeginnerProgressionBand(0.2, 1)).toBe(true);
+    expect(isWithinBeginnerProgressionBand(0.6, 1)).toBe(false);
   });
 });

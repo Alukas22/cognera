@@ -10,7 +10,7 @@ function matrixCell(cell, isMissing) {
     ? "?"
     : `
       <div class="figure-wrap" data-testid="matrix-figure">
-        ${FigureRenderer(cell, { sizePx: 64, className: "matrix-figure-svg" })}
+        ${FigureRenderer(cell, { sizePx: 96, className: "matrix-figure-svg" })}
       </div>
     `;
 
@@ -42,7 +42,7 @@ function optionButton(state, option, index) {
       ${state.isResolved || state.loading ? "disabled" : ""}
     >
       <span class="option-visual" data-testid="option-visual-${index}">
-        ${FigureRenderer(option, { sizePx: 56, className: "option-figure-svg" })}
+        ${FigureRenderer(option, { sizePx: 76, className: "option-figure-svg" })}
       </span>
     </button>
   `;
@@ -178,57 +178,59 @@ export function renderApp(root, state, handlers) {
         </article>
       </section>
 
-      <section class="card board-panel">
-        <h2>Matrix</h2>
-        ${
-          state.puzzle
-            ? `<div class="matrix-board">${state.puzzle.grid
-                .map((row, rowIndex) =>
-                  row
-                    .map((cell, colIndex) =>
-                      matrixCell(
-                        cell,
-                        rowIndex === state.puzzle.missing_position[0] &&
-                          colIndex === state.puzzle.missing_position[1]
+      <section class="play-area">
+        <section class="card board-panel">
+          <h2>Matrix</h2>
+          ${
+            state.puzzle
+              ? `<div class="matrix-board">${state.puzzle.grid
+                  .map((row, rowIndex) =>
+                    row
+                      .map((cell, colIndex) =>
+                        matrixCell(
+                          cell,
+                          rowIndex === state.puzzle.missing_position[0] &&
+                            colIndex === state.puzzle.missing_position[1]
+                        )
                       )
-                    )
-                    .join("")
-                )
-                .join("")}</div>`
-            : "<p class='empty-state'>Generate a puzzle to begin.</p>"
-        }
-      </section>
+                      .join("")
+                  )
+                  .join("")}</div>`
+              : "<p class='empty-state'>Generate a puzzle to begin.</p>"
+          }
+        </section>
 
-      <section class="card answer-panel">
-        <div class="answer-header">
-          <h2>Answer Options</h2>
-          <button
-            class="ghost-button"
-            data-action="next"
-            data-testid="next-puzzle-button"
-            ${state.loading ? "disabled" : ""}
-          >
-            Next Puzzle
-          </button>
-        </div>
-        ${
-          state.errorMessage
-            ? `<p class="feedback feedback--incorrect">${state.errorMessage}</p>`
-            : ""
-        }
-        ${
-          state.loading
-            ? "<p class='feedback feedback--neutral'>Loading puzzle...</p>"
-            : ""
-        }
-        ${
-          state.puzzle
-            ? `<div class="options-grid" data-testid="options-grid">${state.puzzle.options
-                .map((option, index) => optionButton(state, option, index))
-                .join("")}</div>`
-            : ""
-        }
-        <div data-testid="feedback-block">${feedbackBlock(state)}</div>
+        <section class="card answer-panel">
+          <div class="answer-header">
+            <h2>Answer Options</h2>
+            <button
+              class="ghost-button"
+              data-action="next"
+              data-testid="next-puzzle-button"
+              ${state.loading ? "disabled" : ""}
+            >
+              Next Puzzle
+            </button>
+          </div>
+          ${
+            state.errorMessage
+              ? `<p class="feedback feedback--incorrect">${state.errorMessage}</p>`
+              : ""
+          }
+          ${
+            state.loading
+              ? "<p class='feedback feedback--neutral'>Loading puzzle...</p>"
+              : ""
+          }
+          ${
+            state.puzzle
+              ? `<div class="options-grid" data-testid="options-grid">${state.puzzle.options
+                  .map((option, index) => optionButton(state, option, index))
+                  .join("")}</div>`
+              : ""
+          }
+          <div data-testid="feedback-block">${feedbackBlock(state)}</div>
+        </section>
       </section>
       ${loadingOverlay(state)}
     </main>

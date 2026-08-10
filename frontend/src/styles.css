@@ -10,6 +10,8 @@
   --border: #cbc5b7;
   --panel: #f6f1e6;
   --panel-strong: #efe7d7;
+  --matrix-cell-min: 150px;
+  --option-card-min: 144px;
 }
 
 * {
@@ -26,7 +28,7 @@ body {
 }
 
 .app-shell {
-  max-width: 1080px;
+  max-width: 1400px;
   margin: 24px auto;
   padding: 16px;
   display: grid;
@@ -45,6 +47,8 @@ body {
   justify-content: space-between;
   align-items: center;
   padding: 18px;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
 .brand {
@@ -130,6 +134,11 @@ body {
   gap: 12px;
 }
 
+.play-area {
+  display: grid;
+  gap: 16px;
+}
+
 .stat {
   padding: 12px 14px;
   display: grid;
@@ -152,6 +161,10 @@ body {
   padding: 16px;
 }
 
+.board-panel {
+  align-self: start;
+}
+
 .board-panel h2,
 .answer-panel h2 {
   margin-top: 0;
@@ -160,20 +173,20 @@ body {
 
 .matrix-board {
   display: grid;
-  grid-template-columns: repeat(3, minmax(95px, 1fr));
-  gap: 12px;
-  padding: 8px;
+  grid-template-columns: repeat(3, minmax(var(--matrix-cell-min), 1fr));
+  gap: 14px;
+  padding: 14px;
   background: linear-gradient(180deg, var(--panel) 0%, var(--panel-strong) 100%);
   border-radius: 16px;
   border: 1px solid var(--border);
 }
 
 .matrix-cell {
-  min-height: 95px;
+  min-height: var(--matrix-cell-min);
   border-radius: 14px;
   border: 1px solid var(--border);
   background: #fffefb;
-  padding: 8px;
+  padding: 12px;
   display: grid;
   align-content: center;
   justify-items: center;
@@ -214,15 +227,15 @@ body {
 
 .options-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .option-button {
   background: #fffdf8;
   border: 1px solid var(--border);
-  padding: 12px;
-  min-height: 104px;
+  padding: 14px;
+  min-height: var(--option-card-min);
   display: grid;
   align-items: center;
   justify-items: center;
@@ -231,7 +244,7 @@ body {
 }
 
 .option-visual {
-  min-height: 60px;
+  min-height: 90px;
   width: 100%;
   display: grid;
   place-items: center;
@@ -278,6 +291,59 @@ body {
 
 .feedback-visual {
   margin-top: 8px;
+}
+
+@media (min-width: 1100px) {
+  .play-area {
+    grid-template-columns: minmax(0, 1.05fr) minmax(420px, 0.95fr);
+    align-items: start;
+  }
+
+  .board-panel {
+    position: sticky;
+    top: 16px;
+  }
+}
+
+@media (max-width: 960px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .options-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  :root {
+    --matrix-cell-min: 124px;
+    --option-card-min: 128px;
+  }
+}
+
+@media (max-width: 640px) {
+  .app-shell {
+    margin: 14px auto;
+    padding: 12px;
+  }
+
+  .app-header,
+  .answer-header {
+    align-items: stretch;
+  }
+
+  .header-controls {
+    flex-wrap: wrap;
+  }
+
+  .stats-grid,
+  .options-grid {
+    grid-template-columns: 1fr;
+  }
+
+  :root {
+    --matrix-cell-min: 106px;
+    --option-card-min: 114px;
+  }
 }
 
 .fatal-panel {

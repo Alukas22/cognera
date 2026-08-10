@@ -98,3 +98,23 @@ export function formatDuration(durationMs) {
   const seconds = (totalSeconds % 60).toString().padStart(2, "0");
   return `${minutes}:${seconds}`;
 }
+
+const BEGINNER_PROGRESSIONS = [
+  { min: 0.06, max: 0.22 },
+  { min: 0.10, max: 0.28 },
+  { min: 0.14, max: 0.34 },
+  { min: 0.18, max: 0.40 },
+  { min: 0.24, max: 0.48 },
+  { min: 0.30, max: 0.56 },
+  { min: 0.36, max: 0.64 },
+];
+
+export function getBeginnerProgressionBand(puzzleNumber) {
+  const index = Math.max(0, Math.min(BEGINNER_PROGRESSIONS.length - 1, puzzleNumber - 1));
+  return BEGINNER_PROGRESSIONS[index];
+}
+
+export function isWithinBeginnerProgressionBand(difficulty, puzzleNumber) {
+  const band = getBeginnerProgressionBand(puzzleNumber);
+  return difficulty >= band.min && difficulty <= band.max;
+}

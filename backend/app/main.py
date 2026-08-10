@@ -15,6 +15,7 @@ from pydantic import BaseModel
 from .config import AppConfig
 from .database import prepare_database_connection
 from .matrix import RuleRegistry, MatrixGenerator, RuleType
+from .matrix.explainer import explain_puzzle
 
 config = AppConfig()
 FRONTEND_DIST_DIR = Path(__file__).resolve().parents[2] / "frontend-dist"
@@ -24,6 +25,7 @@ FRONTEND_INDEX_FILE = FRONTEND_DIST_DIR / "index.html"
 
 class GeneratePuzzleRequest(BaseModel):
     seed: int | None = None
+    language: str = "en"
 
 logger = logging.getLogger("cognera")
 logger.setLevel(logging.INFO)
@@ -141,88 +143,33 @@ def _serialize_difficulty_profile(profile) -> dict[str, float]:
     return profile.as_dict()
 
 
-def _option_selection_priority(option) -> tuple[float, int, str, str]:
-    return (
-        float(option.difficulty),
-        0 if option.reason is not None else 1,
-        "" if option.reason is None else option.reason.value,
-        option.label,
-    )
+def _normalize_language(language: str | None) -> str:
+    return "sv" if (language or "").lower().startswith("sv") else "en"
 
 
-def _project_vertical_slice_options(puzzle) -> tuple[list[dict[str, Any]], int]:
-    correct_index = puzzle.correct_index
-    incorrect_candidates = [
-        (index, option)
-        for index, option in enumerate(puzzle.options)
-        if index != correct_index and not option.is_correct
-    ]
-
-    selected_incorrect_indices: list[int] = []
-    covered_reasons: set[str] = set()
-    for index, option in sorted(
-        incorrect_candidates,
-        key=lambda item: _option_selection_priority(item[1]),
-        reverse=True,
-    ):
-        reason = None if option.reason is None else option.reason.value
-        if reason is None or reason in covered_reasons:
-            continue
-        selected_incorrect_indices.append(index)
-        covered_reasons.add(reason)
-        if len(selected_incorrect_indices) == 3:
-            break
-
-    if len(selected_incorrect_indices) < 3:
-        for index, option in sorted(
-            incorrect_candidates,
-            key=lambda item: _option_selection_priority(item[1]),
-            reverse=True,
-        ):
-            if index in selected_incorrect_indices:
-                continue
-            selected_incorrect_indices.append(index)
-            if len(selected_incorrect_indices) == 3:
-                break
-
-    selected_indices = [correct_index, *selected_incorrect_indices]
-
-    options: list[dict[str, Any]] = []
-    remapped_correct_index = 0
-    for projected_index, original_index in enumerate(selected_indices):
-        option = puzzle.options[original_index]
-        serialized = _serialize_option(option)
-        serialized["label"] = chr(65 + projected_index)
-        options.append(serialized)
-        if original_index == correct_index:
-            remapped_correct_index = projected_index
-
-    return options, remapped_correct_index
-
-
-def _serialize_generated_puzzle(puzzle) -> dict[str, Any]:
-    options, correct_index = _project_vertical_slice_options(puzzle)
+def _serialize_generated_puzzle(puzzle, language: str = "en") -> dict[str, Any]:
     return {
         "seed": puzzle.seed,
         "grid": [
             [_serialize_figure(cell) for cell in row] for row in puzzle.grid
         ],
         "missing_position": list(puzzle.missing_position),
-        "options": options,
-        "correct_index": correct_index,
-        "explanation": puzzle.explanation,
+        "options": [_serialize_option(option) for option in puzzle.options],
+        "correct_index": puzzle.correct_index,
+        "explanation": explain_puzzle(puzzle, language=language),
         "difficulty": puzzle.difficulty,
         "difficulty_profile": _serialize_difficulty_profile(puzzle.difficulty_profile),
     }
 
 
 @app.get("/matrix/demo")
-async def matrix_demo() -> dict:
+async def matrix_demo(language: str = "en") -> dict:
     logger.info("endpoint.matrix_demo", extra={"path": "/matrix/demo"})
 
     registry = RuleRegistry()
     rule = registry.get(RuleType.ROTATION)
     puzzle = MatrixGenerator(rule).generate(seed=123)
+    normalized_language = _normalize_language(language)
 
     return {
         "grid": [
@@ -231,7 +178,7 @@ async def matrix_demo() -> dict:
         "missing": list(puzzle.missing_position),
         "options": [_serialize_figure(option.figure) for option in puzzle.options],
         "correct": puzzle.correct_index,
-        "explanation": puzzle.explanation,
+        "explanation": explain_puzzle(puzzle, language=normalized_language),
         "skills": puzzle.skill_profile.as_dict(),
         "difficulty": puzzle.difficulty,
         "difficulty_profile": {
@@ -252,5 +199,6 @@ async def matrix_generate(payload: GeneratePuzzleRequest | None = None) -> dict[
     logger.info("endpoint.matrix_generate", extra={"path": "/matrix/generate"})
 
     seed = payload.seed if payload and payload.seed is not None else random.randint(1, 1_000_000_000)
+    language = _normalize_language(payload.language if payload else None)
     puzzle = MatrixGenerator(RuleRegistry()).generate(seed=seed)
-    return _serialize_generated_puzzle(puzzle)
+    return _serialize_generated_puzzle(puzzle, language=language)
