@@ -5,6 +5,7 @@ from __future__ import annotations
 import inspect
 import random
 from dataclasses import replace
+from itertools import permutations
 from typing import Iterable
 
 from .answer_options import AnswerOptionEngine
@@ -25,6 +26,102 @@ SHAPE_RULE_TYPES = {
     RuleType.POSITION,
     RuleType.MIRROR,
 }
+
+
+class RuleConstraintEngine:
+    """Backward-compatible rule combination validator for legacy test contracts."""
+
+    def __init__(self, sample_seeds: tuple[int, ...] = tuple(range(20))) -> None:
+        self.sample_seeds = sample_seeds
+        self.validation_reasons: list[str] = []
+        self.validated_rules: list[BaseRule] = []
+        self.answer_option_engine = AnswerOptionEngine()
+
+    def validate_rules(self, rules: list[BaseRule]) -> bool:
+        self.validation_reasons = []
+        self.validated_rules = []
+
+        if not rules:
+            self.validation_reasons.append("No rules provided.")
+            return False
+
+        duplicates = self._find_duplicates(rules)
+        if duplicates:
+            self.validation_reasons.append(
+                f"Duplicate rule types are not allowed: {', '.join(sorted(duplicates))}."
+            )
+            return False
+
+        compatible_order = self._find_compatible_order(rules)
+        if compatible_order is None:
+            if not self.validation_reasons:
+                self.validation_reasons.append("No compatible rule ordering found.")
+            return False
+
+        self.validated_rules = compatible_order
+        return True
+
+    def _find_duplicates(self, rules: list[BaseRule]) -> set[str]:
+        seen: set[RuleType] = set()
+        duplicates: set[str] = set()
+        for rule in rules:
+            if rule.rule_type in seen:
+                duplicates.add(rule.rule_type.value)
+            else:
+                seen.add(rule.rule_type)
+        return duplicates
+
+    def _find_compatible_order(self, rules: list[BaseRule]) -> list[BaseRule] | None:
+        for ordered_rules in permutations(rules):
+            validated, reason = self._validate_order(list(ordered_rules))
+            if validated:
+                return list(ordered_rules)
+            if reason:
+                self.validation_reasons.append(reason)
+        return None
+
+    def _validate_order(self, rules: list[BaseRule]) -> tuple[bool, str | None]:
+        names = ", ".join(rule.rule_type.value for rule in rules)
+        composite = CompositeRule(rules)
+        for seed in self.sample_seeds:
+            try:
+                puzzle = composite.generate(seed)
+            except Exception:
+                continue
+
+            if not composite.validate(puzzle.grid):
+                continue
+
+            ambiguous_reason = self._check_ambiguous_answer(composite, puzzle)
+            if ambiguous_reason is not None:
+                return False, f"Rule ordering [{names}] is ambiguous: {ambiguous_reason}"
+
+            return True, None
+
+        return False, f"Rule ordering [{names}] produced no valid puzzle in sampled seeds."
+
+    def _check_ambiguous_answer(self, composite: "CompositeRule", puzzle: MatrixPuzzle) -> str | None:
+        if puzzle.difficulty is None:
+            return None
+        if puzzle.missing_position is not None:
+            missing_row, missing_col = puzzle.missing_position
+        else:
+            missing_cells = [
+                (row_index, col_index)
+                for row_index, row in enumerate(puzzle.grid)
+                for col_index, cell in enumerate(row)
+                if cell is None
+            ]
+            if len(missing_cells) != 1:
+                return "Puzzle does not contain exactly one missing cell."
+            missing_row, missing_col = missing_cells[0]
+        _, _, distractors = self.answer_option_engine.build(puzzle)
+        for distractor in distractors:
+            grid = [list(row) for row in puzzle.grid]
+            grid[missing_row][missing_col] = distractor.figure
+            if composite.validate(tuple(tuple(row) for row in grid)):
+                return "A distractor also satisfies the composite rule set."
+        return None
 
 
 class RuleRegistry:
@@ -103,6 +200,7 @@ class MatrixGenerator:
     """Generator that delegates puzzle creation to a rule plugin."""
 
     def __init__(self, rule_or_registry: BaseRule | RuleRegistry) -> None:
+        self.constraint_engine = RuleConstraintEngine()
         self.answer_option_engine = AnswerOptionEngine()
         self.difficulty_engine = CognitiveDifficultyEngine()
         self.expert_reviewer = ExpertQualityReviewer()

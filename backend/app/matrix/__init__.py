@@ -13,7 +13,10 @@ from .models import (
     RuleType,
     SkillProfile,
 )
-from .rule_engine import MatrixGenerator, RuleRegistry, BaseRule
+from .difficulty_engine import CognitiveDifficultyEngine, DifficultyEngine
+from .human_reasoning_validator import HumanReasoningValidator
+from .perceptual_validation import PerceptualValidationEngine
+from .rule_engine import BaseRule, MatrixGenerator, RuleConstraintEngine, RuleRegistry
 from .explainer import explain_puzzle
 
 __all__ = [
@@ -25,7 +28,12 @@ __all__ = [
     "RuleType",
     "SkillProfile",
     "BaseRule",
+    "CognitiveDifficultyEngine",
+    "DifficultyEngine",
+    "HumanReasoningValidator",
     "MatrixGenerator",
+    "PerceptualValidationEngine",
+    "RuleConstraintEngine",
     "RuleRegistry",
     "explain_puzzle",
 ]

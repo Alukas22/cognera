@@ -952,6 +952,49 @@ class MirrorRule(BaseRule):
     def difficulty(self) -> float:
         return 0.9
 
+    def overlay(self, puzzle: MatrixPuzzle, seed: int) -> MatrixPuzzle:
+        generated = self.generate(seed)
+        grid: list[list[Figure | None]] = []
+        for row in range(3):
+            row_cells: list[Figure | None] = []
+            for col in range(3):
+                if puzzle.grid[row][col] is None:
+                    row_cells.append(None)
+                    continue
+                row_cells.append(
+                    Figure(
+                        shape=generated.grid[row][col].shape,
+                        rotation=puzzle.grid[row][col].rotation,
+                        size=puzzle.grid[row][col].size,
+                        color=puzzle.grid[row][col].color,
+                    )
+                )
+            grid.append(row_cells)
+
+        distractors = tuple(
+            Figure(
+                shape=distractor.shape,
+                rotation=puzzle.correct_answer.rotation,
+                size=puzzle.correct_answer.size,
+                color=puzzle.correct_answer.color,
+            )
+            for distractor in generated.distractors
+        )
+
+        return MatrixPuzzle(
+            seed=puzzle.seed,
+            rules=puzzle.rules,
+            grid=tuple(tuple(cell for cell in row) for row in grid),
+            correct_answer=Figure(
+                shape=generated.correct_answer.shape,
+                rotation=puzzle.correct_answer.rotation,
+                size=puzzle.correct_answer.size,
+                color=puzzle.correct_answer.color,
+            ),
+            distractors=distractors,
+            skill_profile=puzzle.skill_profile,
+        )
+
 
 class ColorRule(BaseRule):
     """Placeholder for future color rule implementation."""

@@ -62,6 +62,7 @@ class HumanReasoningValidator:
         candidate_rules: list[BaseRule],
         perceptual_validation_passed: bool,
     ) -> tuple[dict[str, bool], HumanReasoningReview, dict[str, object]]:
+        missing_position = puzzle.missing_position or self._infer_missing_position(puzzle)
         completed_grid = self._with_candidate(puzzle, puzzle.correct_answer)
 
         full_matrix_reconstructable, reconstructed = self._reconstruct_from_rules(selected_rules, puzzle.seed)
@@ -91,7 +92,7 @@ class HumanReasoningValidator:
         rules_visible_without_answer = all_visible_cells_derived and every_row_participates and every_column_participates
         no_hidden_assumptions = full_matrix_reconstructable and rules_visible_without_answer
 
-        blind = self.blind_solver.choose(puzzle.grid, puzzle.options, puzzle.missing_position)
+        blind = self.blind_solver.choose(puzzle.grid, puzzle.options, missing_position)
         human_reasoning_unambiguous = (
             correct_option_is_unique
             and options_unique
@@ -163,12 +164,34 @@ class HumanReasoningValidator:
         }
         return checks, review, diagnostics
 
+    def _infer_missing_position(self, puzzle: MatrixPuzzle) -> tuple[int, int]:
+        missing_cells = [
+            (row_index, col_index)
+            for row_index, row in enumerate(puzzle.grid)
+            for col_index, cell in enumerate(row)
+            if cell is None
+        ]
+        if len(missing_cells) != 1:
+            raise ValueError("MatrixPuzzle must contain exactly one missing cell.")
+        return missing_cells[0]
+
     def _with_candidate(
         self,
         puzzle: MatrixPuzzle,
         candidate: Figure,
     ) -> tuple[tuple[Figure, ...], ...]:
-        row, col = puzzle.missing_position
+        if puzzle.missing_position is not None:
+            row, col = puzzle.missing_position
+        else:
+            missing_cells = [
+                (r, c)
+                for r in range(3)
+                for c in range(3)
+                if puzzle.grid[r][c] is None
+            ]
+            if len(missing_cells) != 1:
+                raise ValueError("MatrixPuzzle must contain exactly one missing cell.")
+            row, col = missing_cells[0]
         built: list[tuple[Figure, ...]] = []
         for r in range(3):
             row_cells: list[Figure] = []

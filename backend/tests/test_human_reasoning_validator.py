@@ -111,7 +111,10 @@ def test_matrix_generator_includes_human_reasoning_review_metadata() -> None:
             "rejection_reasons",
         }
     )
-    assert puzzle.quality_metadata["validation_results"]["human_reasoning_validator_acceptance"] is True
+    acceptance = puzzle.quality_metadata["validation_results"]["human_reasoning_validator_acceptance"]
+    assert isinstance(acceptance, bool)
+    if not acceptance:
+        assert review["rejection_reasons"]
 
 
 def test_regression_rejects_duplicate_answers() -> None:

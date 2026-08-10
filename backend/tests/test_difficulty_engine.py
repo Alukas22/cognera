@@ -29,7 +29,9 @@ def test_cognitive_difficulty_overall_matches_weighted_formula() -> None:
 
     from backend.app.matrix.rule_engine import CompositeRule
     raw_puzzle = CompositeRule(composite.validated_rules).generate(seed=7)
-    puzzle = MatrixGenerator(registry)._finalize_puzzle(raw_puzzle)
+    selected_rules = composite.validated_rules
+    candidate_rules = [registry.get(rule_type) for rule_type in registry.available()]
+    puzzle = MatrixGenerator(registry)._finalize_puzzle(raw_puzzle, selected_rules, candidate_rules)
     profile = puzzle.difficulty_profile
 
     assert profile is not None

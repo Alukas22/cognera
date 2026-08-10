@@ -214,4 +214,6 @@ class DifficultyEngine:
 
     @classmethod
     def score(cls, puzzle: MatrixPuzzle) -> float:
+        if puzzle.difficulty_profile is not None:
+            return puzzle.difficulty_profile.overall
         return CognitiveDifficultyEngine().evaluate(puzzle).overall
