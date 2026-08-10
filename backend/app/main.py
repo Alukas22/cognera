@@ -3,10 +3,13 @@ import logging
 import random
 import sys
 import uuid
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from .config import AppConfig
@@ -14,6 +17,9 @@ from .database import prepare_database_connection
 from .matrix import RuleRegistry, MatrixGenerator, RuleType
 
 config = AppConfig()
+FRONTEND_DIST_DIR = Path(__file__).resolve().parents[2] / "frontend-dist"
+FRONTEND_ASSETS_DIR = FRONTEND_DIST_DIR / "assets"
+FRONTEND_INDEX_FILE = FRONTEND_DIST_DIR / "index.html"
 
 
 class GeneratePuzzleRequest(BaseModel):
@@ -55,6 +61,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+if FRONTEND_ASSETS_DIR.exists():
+    app.mount("/assets", StaticFiles(directory=FRONTEND_ASSETS_DIR), name="frontend-assets")
+
 
 @app.middleware("http")
 async def add_request_id(request: Request, call_next):
@@ -78,9 +87,19 @@ async def on_startup() -> None:
 
 
 @app.get("/")
-async def read_root() -> dict[str, str]:
+async def read_root() -> Any:
     logger.info("endpoint.root", extra={"path": "/"})
+    if FRONTEND_INDEX_FILE.exists():
+        return FileResponse(FRONTEND_INDEX_FILE)
     return {"message": "Welcome to Cognera"}
+
+
+@app.get("/health-check")
+async def health_check_page() -> Any:
+    logger.info("endpoint.health_check_page", extra={"path": "/health-check"})
+    if FRONTEND_INDEX_FILE.exists():
+        return FileResponse(FRONTEND_INDEX_FILE)
+    return {"message": "Frontend shell unavailable"}
 
 
 @app.get("/health")
