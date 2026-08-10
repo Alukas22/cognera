@@ -12,14 +12,15 @@ Read documents in the following order to build context from system-wide concepts
 
 1. [docs/architecture/SYSTEM_ARCHITECTURE.md](docs/architecture/SYSTEM_ARCHITECTURE.md)
 2. [docs/ENGINEERING_PRINCIPLES.md](docs/ENGINEERING_PRINCIPLES.md)
-3. [docs/COGNERA_PUZZLE_STANDARD.md](docs/COGNERA_PUZZLE_STANDARD.md)
-4. [docs/COGNERA_VISUAL_GRAMMAR.md](docs/COGNERA_VISUAL_GRAMMAR.md)
-5. [docs/FIGURE_LIBRARY.md](docs/FIGURE_LIBRARY.md)
-6. [docs/REASONING_GRAPH.md](docs/REASONING_GRAPH.md)
-7. [docs/KNOWN_FAILURE_PATTERNS.md](docs/KNOWN_FAILURE_PATTERNS.md)
-8. [docs/SPRINT_7_2_HUMAN_REASONING_VALIDATOR_ARCHITECTURE.md](docs/SPRINT_7_2_HUMAN_REASONING_VALIDATOR_ARCHITECTURE.md)
-9. [docs/SPRINT_7_2_KNOWN_FAILURE_PATTERN_SYSTEM_ARCHITECTURE.md](docs/SPRINT_7_2_KNOWN_FAILURE_PATTERN_SYSTEM_ARCHITECTURE.md)
-10. [docs/adr/ADR-001.md](docs/adr/ADR-001.md) through [docs/adr/ADR-005.md](docs/adr/ADR-005.md)
+3. [docs/COGNERA_QUALITY_STANDARD.md](docs/COGNERA_QUALITY_STANDARD.md)
+4. [docs/COGNERA_PUZZLE_STANDARD.md](docs/COGNERA_PUZZLE_STANDARD.md)
+5. [docs/COGNERA_VISUAL_GRAMMAR.md](docs/COGNERA_VISUAL_GRAMMAR.md)
+6. [docs/FIGURE_LIBRARY.md](docs/FIGURE_LIBRARY.md)
+7. [docs/REASONING_GRAPH.md](docs/REASONING_GRAPH.md)
+8. [docs/KNOWN_FAILURE_PATTERNS.md](docs/KNOWN_FAILURE_PATTERNS.md)
+9. [docs/SPRINT_7_2_HUMAN_REASONING_VALIDATOR_ARCHITECTURE.md](docs/SPRINT_7_2_HUMAN_REASONING_VALIDATOR_ARCHITECTURE.md)
+10. [docs/SPRINT_7_2_KNOWN_FAILURE_PATTERN_SYSTEM_ARCHITECTURE.md](docs/SPRINT_7_2_KNOWN_FAILURE_PATTERN_SYSTEM_ARCHITECTURE.md)
+11. [docs/adr/ADR-001.md](docs/adr/ADR-001.md) through [docs/adr/ADR-005.md](docs/adr/ADR-005.md)
 
 ## Layered Architecture Overview
 
@@ -28,6 +29,7 @@ Cognera architecture is organized into layered concerns. The documents below est
 1. Platform and system layer:
 	- [docs/architecture/SYSTEM_ARCHITECTURE.md](docs/architecture/SYSTEM_ARCHITECTURE.md)
 2. Domain and puzzle logic layer:
+	- [docs/COGNERA_QUALITY_STANDARD.md](docs/COGNERA_QUALITY_STANDARD.md)
 	- [docs/COGNERA_PUZZLE_STANDARD.md](docs/COGNERA_PUZZLE_STANDARD.md)
 	- [docs/COGNERA_VISUAL_GRAMMAR.md](docs/COGNERA_VISUAL_GRAMMAR.md)
 	- [docs/REASONING_GRAPH.md](docs/REASONING_GRAPH.md)
@@ -74,10 +76,11 @@ ADR usage policy:
 The following standards constrain implementation quality and architectural consistency:
 
 1. [docs/ENGINEERING_PRINCIPLES.md](docs/ENGINEERING_PRINCIPLES.md): Core engineering rules and quality expectations.
-2. [docs/COGNERA_PUZZLE_STANDARD.md](docs/COGNERA_PUZZLE_STANDARD.md): Puzzle-quality constraints and design requirements.
-3. [docs/COGNERA_VISUAL_GRAMMAR.md](docs/COGNERA_VISUAL_GRAMMAR.md): Visual consistency and transformation grammar.
-4. [docs/KNOWN_FAILURE_PATTERNS.md](docs/KNOWN_FAILURE_PATTERNS.md): Catalog of known failure modes and guardrails.
-5. [docs/AI_AGENT_RULES.md](docs/AI_AGENT_RULES.md): AI contribution governance and architecture protection rules.
+2. [docs/COGNERA_QUALITY_STANDARD.md](docs/COGNERA_QUALITY_STANDARD.md): Governing product quality standard and cognitive-development constraints.
+3. [docs/COGNERA_PUZZLE_STANDARD.md](docs/COGNERA_PUZZLE_STANDARD.md): Puzzle-quality constraints and design requirements.
+4. [docs/COGNERA_VISUAL_GRAMMAR.md](docs/COGNERA_VISUAL_GRAMMAR.md): Visual consistency and transformation grammar.
+5. [docs/KNOWN_FAILURE_PATTERNS.md](docs/KNOWN_FAILURE_PATTERNS.md): Catalog of known failure modes and guardrails.
+6. [docs/AI_AGENT_RULES.md](docs/AI_AGENT_RULES.md): AI contribution governance and architecture protection rules.
 
 ## Future Documentation
 

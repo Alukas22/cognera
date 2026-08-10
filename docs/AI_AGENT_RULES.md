@@ -15,6 +15,7 @@ The rules in this document are normative. The keywords MUST, MUST NOT, SHOULD, S
 5. Minimal, reversible change sets: Changes SHOULD be narrow, auditable, and easy to roll back.
 6. Safety and non-destructiveness: Agents MUST avoid destructive actions unless explicitly requested and approved.
 7. Long-term maintainability: Agents MUST optimize for extensibility, clarity, and operational reliability.
+8. When implementing new functionality, prioritize compliance with COGNERA_QUALITY_STANDARD.md over implementation convenience. Every feature should improve the user's cognitive development experience.
 
 ## Architecture Authority
 
