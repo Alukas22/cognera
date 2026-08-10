@@ -191,6 +191,7 @@ async def matrix_demo() -> dict:
     }
 
 
+@app.post("/api/matrix/generate")
 @app.post("/matrix/generate")
 async def matrix_generate(payload: GeneratePuzzleRequest | None = None) -> dict[str, Any]:
     logger.info("endpoint.matrix_generate", extra={"path": "/matrix/generate"})

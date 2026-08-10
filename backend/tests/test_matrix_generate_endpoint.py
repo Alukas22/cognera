@@ -7,7 +7,7 @@ from backend.app.main import app
 
 def test_matrix_generate_endpoint_returns_vertical_slice_payload() -> None:
     client = TestClient(app)
-    response = client.post("/matrix/generate", json={"seed": 123})
+    response = client.post("/api/matrix/generate", json={"seed": 123})
 
     assert response.status_code == 200
     payload = response.json()
@@ -29,7 +29,16 @@ def test_matrix_generate_endpoint_returns_vertical_slice_payload() -> None:
 def test_matrix_generate_endpoint_is_deterministic_for_seed() -> None:
     client = TestClient(app)
 
-    first = client.post("/matrix/generate", json={"seed": 2024}).json()
-    second = client.post("/matrix/generate", json={"seed": 2024}).json()
+    first = client.post("/api/matrix/generate", json={"seed": 2024}).json()
+    second = client.post("/api/matrix/generate", json={"seed": 2024}).json()
 
     assert first == second
+
+
+def test_legacy_matrix_generate_endpoint_still_works() -> None:
+    client = TestClient(app)
+
+    response = client.post("/matrix/generate", json={"seed": 321})
+
+    assert response.status_code == 200
+    assert response.json()["seed"] == 321

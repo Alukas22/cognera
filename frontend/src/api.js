@@ -6,7 +6,7 @@
 
 import { createLogger } from "./logger.js";
 
-const GENERATE_ENDPOINT = "/matrix/generate";
+const GENERATE_ENDPOINT = "/api/matrix/generate";
 const DEMO_ENDPOINT = "/matrix/demo";
 const HEALTH_ENDPOINT = "/health";
 const VERSION_ENDPOINT = "/version";

@@ -9,6 +9,7 @@ export default defineConfig({
     host: "127.0.0.1",
     port: 5173,
     proxy: {
+      "/api": "http://127.0.0.1:8000",
       "/matrix": "http://127.0.0.1:8000",
       "^/health$": "http://127.0.0.1:8000",
       "^/version$": "http://127.0.0.1:8000",

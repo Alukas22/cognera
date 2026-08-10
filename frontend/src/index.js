@@ -1,144 +1,128 @@
-import "./styles.css";
 import { fetchPuzzle, fetchSystemHealth } from "./api.js";
-import {
-  createGameState,
-  resetSession,
-  setHealthData,
-  setPuzzle,
-  selectOption,
-  formatDuration,
-} from "./game.js";
-import { renderApp, renderHealthView } from "./ui.js";
+import { createGameState, selectOption, setHealthData, setPuzzle } from "./game.js";
 import { createLogger } from "./logger.js";
+import { renderApp, renderHealthView } from "./ui.js";
+import "./styles.css";
 
-const root = document.getElementById("root");
-let state = createGameState();
 const logger = createLogger("frontend.app");
+const root = document.getElementById("root");
 
-function initialView() {
+let state = createGameState();
+
+function routeView() {
   return window.location.pathname === "/health-check" ? "health" : "game";
 }
 
-state = { ...state, view: initialView() };
+function setView(view) {
+  state = {
+    ...state,
+    view,
+    errorMessage: view === "game" ? state.errorMessage : "",
+    healthError: view === "health" ? state.healthError : "",
+  };
+}
 
-window.addEventListener("error", (event) => {
-  logger.error("app.unhandled_error", {
-    message: event.message,
-    filename: event.filename,
-    lineno: event.lineno,
-    colno: event.colno,
-  });
-});
+function render() {
+  if (!root) {
+    return;
+  }
 
-window.addEventListener("unhandledrejection", (event) => {
-  logger.error("app.unhandled_promise", {
-    reason: String(event.reason ?? "unknown"),
-  });
-});
-
-function updateView() {
   if (state.view === "health") {
     renderHealthView(root, state, {
-      onRefreshHealth: async () => {
-        await loadHealth();
-      },
-      onBackToGame: async () => {
-        window.history.pushState({}, "", "/");
-        state = { ...state, view: "game", healthError: "" };
-        updateView();
-      },
+      onRefreshHealth: loadHealth,
+      onBackToGame: () => navigateTo("/"),
     });
     return;
   }
 
   renderApp(root, state, {
-    onGeneratePuzzle: async () => {
-      state = resetSession(state);
-      await loadNextPuzzle();
-    },
-    onNextPuzzle: async () => {
-      await loadNextPuzzle();
-    },
-    onSelectOption: (index) => {
-      state = selectOption(state, index);
-      updateView();
-    },
-    onRetry: async () => {
-      await loadNextPuzzle();
-    },
-    onOpenHealth: async () => {
-      window.history.pushState({}, "", "/health-check");
-      state = { ...state, view: "health" };
-      updateView();
-      await loadHealth();
-    },
+    onGeneratePuzzle: loadPuzzle,
+    onNextPuzzle: loadPuzzle,
+    onSelectOption: handleSelectOption,
+    onRetry: loadPuzzle,
+    onOpenHealth: () => navigateTo("/health-check"),
   });
 }
 
-async function loadHealth() {
-  state = { ...state, appLoading: true, healthError: "" };
-  updateView();
-  try {
-    const health = await fetchSystemHealth();
-    state = setHealthData(state, health);
-    logger.info("app.health_loaded", {
-      backend_status: health.backend_status,
-      backend_version: health.backend_version,
-    });
-  } catch (error) {
-    state = {
-      ...state,
-      appLoading: false,
-      healthError: "Unable to reach backend health endpoints. Check connectivity and retry.",
-    };
-    logger.error("app.health_failed", {
-      message: error instanceof Error ? error.message : "unknown",
-    });
-  }
-  updateView();
-}
+async function loadPuzzle() {
+  state = {
+    ...state,
+    view: "game",
+    loading: true,
+    appLoading: false,
+    errorMessage: "",
+  };
+  render();
 
-async function loadNextPuzzle() {
-  state = { ...state, loading: true, errorMessage: "" };
-  updateView();
   try {
     const puzzle = await fetchPuzzle();
     state = setPuzzle(state, puzzle);
-    logger.info("app.puzzle_loaded", {
-      puzzle_number: state.puzzleNumber,
-      difficulty: puzzle.difficulty,
-      latency_ms: puzzle.response_time_ms,
-    });
   } catch (error) {
-    logger.error("app.puzzle_load_failed", {
-      message: error instanceof Error ? error.message : "unknown",
+    logger.error("puzzle.load_failed", {
+      message: error instanceof Error ? error.message : "Unknown error",
     });
     state = {
       ...state,
       loading: false,
-      errorMessage:
-        "Cognera cannot reach the puzzle service right now. Please retry in a few seconds.",
+      appLoading: false,
+      errorMessage: "Unable to load a puzzle right now.",
     };
   }
-  updateView();
+
+  render();
 }
 
-window.setInterval(() => {
-  if (!state.sessionStartedAt) {
-    return;
-  }
-  const elapsed = Date.now() - state.sessionStartedAt;
-  const timerNode = document.querySelector("[data-role='timer']");
-  if (timerNode) {
-    timerNode.textContent = formatDuration(elapsed);
-  }
-}, 1000);
+async function loadHealth() {
+  state = {
+    ...state,
+    view: "health",
+    appLoading: true,
+    loading: false,
+    healthError: "",
+  };
+  render();
 
-window.addEventListener("DOMContentLoaded", async () => {
-  updateView();
-  if (state.view === "health") {
-    await loadHealth();
+  try {
+    const health = await fetchSystemHealth();
+    state = setHealthData(state, health);
+  } catch (error) {
+    logger.error("health.load_failed", {
+      message: error instanceof Error ? error.message : "Unknown error",
+    });
+    state = {
+      ...state,
+      appLoading: false,
+      healthError: "Unable to load health diagnostics.",
+    };
+  }
+
+  render();
+}
+
+function handleSelectOption(index) {
+  state = selectOption(state, index);
+  render();
+}
+
+function navigateTo(path) {
+  window.history.pushState({}, "", path);
+  syncRoute();
+}
+
+function syncRoute() {
+  const view = routeView();
+  setView(view);
+  render();
+
+  if (view === "health" && state.health === null && !state.appLoading) {
+    void loadHealth();
     return;
   }
-  await loadNextPuzzle();
-});
+
+  if (view === "game" && state.puzzle === null && !state.loading) {
+    void loadPuzzle();
+  }
+}
+
+window.addEventListener("popstate", syncRoute);
+window.addEventListener("DOMContentLoaded", syncRoute);
