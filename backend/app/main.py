@@ -1,17 +1,23 @@
 import json
 import logging
+import random
 import sys
 import uuid
 from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 from .config import AppConfig
 from .database import prepare_database_connection
 from .matrix import RuleRegistry, MatrixGenerator, RuleType
 
 config = AppConfig()
+
+
+class GeneratePuzzleRequest(BaseModel):
+    seed: int | None = None
 
 logger = logging.getLogger("cognera")
 logger.setLevel(logging.INFO)
@@ -100,6 +106,61 @@ def _serialize_figure(figure):
     }
 
 
+def _serialize_option(option) -> dict[str, Any]:
+    return {
+        "label": option.label,
+        **_serialize_figure(option.figure),
+        "is_correct": option.is_correct,
+        "difficulty": option.difficulty,
+        "reason": None if option.reason is None else option.reason.value,
+        "explanation": option.explanation,
+        "origin_rule": None if option.origin_rule is None else option.origin_rule.value,
+    }
+
+
+def _serialize_difficulty_profile(profile) -> dict[str, float]:
+    return profile.as_dict()
+
+
+def _project_vertical_slice_options(puzzle) -> tuple[list[dict[str, Any]], int]:
+    correct_index = puzzle.correct_index
+    candidate_indices = [correct_index]
+    candidate_indices.extend(
+        index
+        for index, option in enumerate(puzzle.options)
+        if index != correct_index and not option.is_correct
+    )
+    selected_indices = sorted(candidate_indices[:4])
+
+    options: list[dict[str, Any]] = []
+    remapped_correct_index = 0
+    for projected_index, original_index in enumerate(selected_indices):
+        option = puzzle.options[original_index]
+        serialized = _serialize_option(option)
+        serialized["label"] = chr(65 + projected_index)
+        options.append(serialized)
+        if original_index == correct_index:
+            remapped_correct_index = projected_index
+
+    return options, remapped_correct_index
+
+
+def _serialize_generated_puzzle(puzzle) -> dict[str, Any]:
+    options, correct_index = _project_vertical_slice_options(puzzle)
+    return {
+        "seed": puzzle.seed,
+        "grid": [
+            [_serialize_figure(cell) for cell in row] for row in puzzle.grid
+        ],
+        "missing_position": list(puzzle.missing_position),
+        "options": options,
+        "correct_index": correct_index,
+        "explanation": puzzle.explanation,
+        "difficulty": puzzle.difficulty,
+        "difficulty_profile": _serialize_difficulty_profile(puzzle.difficulty_profile),
+    }
+
+
 @app.get("/matrix/demo")
 async def matrix_demo() -> dict:
     logger.info("endpoint.matrix_demo", extra={"path": "/matrix/demo"})
@@ -128,3 +189,12 @@ async def matrix_demo() -> dict:
             "distractor_strength": puzzle.difficulty_profile.distractor_strength,
         },
     }
+
+
+@app.post("/matrix/generate")
+async def matrix_generate(payload: GeneratePuzzleRequest | None = None) -> dict[str, Any]:
+    logger.info("endpoint.matrix_generate", extra={"path": "/matrix/generate"})
+
+    seed = payload.seed if payload and payload.seed is not None else random.randint(1, 1_000_000_000)
+    puzzle = MatrixGenerator(RuleRegistry()).generate(seed=seed)
+    return _serialize_generated_puzzle(puzzle)
