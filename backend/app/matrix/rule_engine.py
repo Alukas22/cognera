@@ -15,6 +15,7 @@ from .expert_reviewer import ExpertQualityReviewer
 from .explainer import explain_puzzle
 from .failure_patterns import detect_known_failure_patterns
 from .human_reasoning_validator import HumanReasoningValidator
+from .human_solvability_gate import HumanSolvabilityGate
 from .models import Figure, MatrixPuzzle, Rule, SkillProfile
 from .perceptual_validation import PerceptualValidationEngine
 from .quality_engine import PuzzleQualityEngine
@@ -167,7 +168,7 @@ class CompositeRule(BaseRule):
     def rule_type(self) -> RuleType:
         raise NotImplementedError("CompositeRule is not a registered standalone rule.")
 
-    def generate(self, seed: int) -> MatrixPuzzle:
+    def generate(self, seed: int, max_attempts: int = 256) -> MatrixPuzzle:
         if not self.rules:
             raise ValueError("CompositeRule requires at least one rule.")
 
@@ -217,6 +218,7 @@ class MatrixGenerator:
         self.expert_reviewer = ExpertQualityReviewer()
         self.human_reasoning_validator = HumanReasoningValidator()
         self.assessment_quality_gate = AssessmentQualityGate()
+        self.human_solvability_gate = HumanSolvabilityGate()
         self.perceptual_validator = PerceptualValidationEngine()
         self.quality_engine = PuzzleQualityEngine()
         if isinstance(rule_or_registry, RuleRegistry):
@@ -226,7 +228,7 @@ class MatrixGenerator:
             self.registry = None
             self.rule = rule_or_registry
 
-    def generate(self, seed: int) -> MatrixPuzzle:
+    def generate(self, seed: int, max_attempts: int = 256) -> MatrixPuzzle:
         if self.rule is not None:
             raw_puzzle = self.rule.generate(seed)
             return self._finalize_puzzle(raw_puzzle, [self.rule], [self.rule])
@@ -234,8 +236,10 @@ class MatrixGenerator:
         available_rules = sorted(self.registry.available(), key=lambda rule_type: rule_type.value)
         candidate_rules = [self.registry.get(rule_type) for rule_type in available_rules]
 
-        max_attempts = 128
+        if max_attempts < 1:
+            raise ValueError("max_attempts must be >= 1")
         rejection_reasons: dict[str, int] = {}
+        rejection_events: list[dict[str, object]] = []
 
         for attempt in range(max_attempts):
             attempt_seed = seed + (attempt * 7919)
@@ -249,12 +253,31 @@ class MatrixGenerator:
             except Exception as error:
                 reason = f"candidate_generation_error:{error.__class__.__name__}"
                 rejection_reasons[reason] = rejection_reasons.get(reason, 0) + 1
+                if len(rejection_events) < 120:
+                    rejection_events.append(
+                        {
+                            "rejection_reason": "candidate_generation_error",
+                            "violated_validation_rule": reason,
+                            "generator_rule_set": [rule_type.value for rule_type in selected_types],
+                            "seed": attempt_seed,
+                        }
+                    )
                 continue
 
             validation_results = puzzle.quality_metadata.get("validation_results", {})
             failed = [name for name, passed in validation_results.items() if not passed]
             for reason in failed:
                 rejection_reasons[reason] = rejection_reasons.get(reason, 0) + 1
+                if len(rejection_events) < 120:
+                    rejection_events.append(
+                        {
+                            "rejection_reason": "validation_failed",
+                            "violated_validation_rule": reason,
+                            "generator_rule_set": [rule_type.value for rule_type in selected_types],
+                            "seed": attempt_seed,
+                            "candidate_snapshot": self._candidate_snapshot(puzzle),
+                        }
+                    )
 
             if self._accepted_by_all_quality_gates(puzzle):
                 quality_metadata = dict(puzzle.quality_metadata)
@@ -265,6 +288,7 @@ class MatrixGenerator:
                         "accepted_candidate_seed": attempt_seed,
                         "rejected_candidates": attempt,
                         "rejection_reasons": rejection_reasons,
+                        "rejection_events": rejection_events,
                     }
                 )
                 quality_metadata["generation_diagnostics"] = generation_diagnostics
@@ -282,6 +306,7 @@ class MatrixGenerator:
             and validation.get("expert_reviewer_acceptance")
             and validation.get("human_reasoning_validator_acceptance")
             and validation.get("assessment_quality_gate_acceptance")
+            and validation.get("human_solvability_gate_acceptance")
         )
 
     def _select_rule_types(self, rng: random.Random, available_rules: list[RuleType]) -> list[RuleType]:
@@ -377,15 +402,25 @@ class MatrixGenerator:
             human_checks,
             human_diagnostics,
         )
+        solvability_review = self.human_solvability_gate.evaluate(
+            puzzle,
+            selected_rules,
+            human_checks=human_checks,
+            human_diagnostics=human_diagnostics,
+            reviewer_accepted=reviewer_accepted,
+            reviewer_checks=reviewer_checks,
+        )
 
         validation_results = {
             **quality_checks,
             **human_checks,
             **assessment_review.checks,
+            **solvability_review.checks,
             "quality_engine_acceptance": quality_accepted,
             "expert_reviewer_acceptance": reviewer_accepted,
             "human_reasoning_validator_acceptance": not human_review.rejection_reasons,
             "assessment_quality_gate_acceptance": assessment_review.passed,
+            "human_solvability_gate_acceptance": solvability_review.passed,
             "explanation_covers_all_visible_cells": (
                 human_checks["explanation_explains_every_row"]
                 and human_checks["explanation_explains_every_column"]
@@ -427,12 +462,51 @@ class MatrixGenerator:
                 "expert_reviewer": reviewer_diagnostics,
                 "human_reasoning": human_diagnostics,
                 "assessment_quality_gate": assessment_review.diagnostics,
+                "human_solvability_gate": solvability_review.diagnostics,
             },
         }
 
         puzzle = replace(puzzle, quality_metadata=quality_metadata)
         puzzle.validate_contract()
         return puzzle
+
+    def _candidate_snapshot(self, puzzle: MatrixPuzzle) -> dict[str, object]:
+        return {
+            "seed": puzzle.seed,
+            "rules": [rule.type.value for rule in puzzle.rules],
+            "missing_position": list(puzzle.missing_position) if puzzle.missing_position else None,
+            "matrix": [
+                [
+                    None
+                    if cell is None
+                    else {
+                        "shape": cell.shape,
+                        "rotation": cell.rotation,
+                        "size": cell.size,
+                        "color": cell.color,
+                    }
+                    for cell in row
+                ]
+                for row in puzzle.grid
+            ],
+            "options": [
+                {
+                    "label": option.label,
+                    "shape": option.figure.shape,
+                    "rotation": option.figure.rotation,
+                    "size": option.figure.size,
+                    "color": option.figure.color,
+                    "is_correct": option.is_correct,
+                    "reason": option.reason.value if option.reason is not None else None,
+                    "origin_rule": option.origin_rule.value if option.origin_rule is not None else None,
+                }
+                for option in (puzzle.options or ())
+            ],
+            "correct_index": puzzle.correct_index,
+            "validation_results": dict((puzzle.quality_metadata or {}).get("validation_results", {})),
+            "quality_score": puzzle.quality_score,
+            "difficulty": puzzle.difficulty,
+        }
 
     def _missing_position(
         self,

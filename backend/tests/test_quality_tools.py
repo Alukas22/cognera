@@ -31,6 +31,10 @@ def test_statistical_validation_report_shape() -> None:
     assert "rejection_reason_by_validation_rule" in report["logical_validation_report"]
     assert "rejection_reason_by_generator_rule_set" in report["logical_validation_report"]
     assert "sample_rejection_events" in report["logical_validation_report"]
+    assert "rejected_puzzle_examples" in report["logical_validation_report"]
+    assert "accepted_puzzle_examples" in report["logical_validation_report"]
+    assert isinstance(report["logical_validation_report"]["rejected_puzzle_examples"], list)
+    assert isinstance(report["logical_validation_report"]["accepted_puzzle_examples"], list)
     assert "rejection_reason" in report["failure_pattern_report"]
     assert "failure_pattern_frequency" in report["failure_pattern_report"]
     assert "failure_pattern_trend" in report["failure_pattern_report"]

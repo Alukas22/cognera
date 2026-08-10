@@ -8,6 +8,7 @@ import random
 from collections import Counter
 from pathlib import Path
 
+from .puzzle_review_framework import run_puzzle_review_framework
 from .rule_engine import MatrixGenerator, RuleRegistry
 
 
@@ -67,7 +68,11 @@ def _puzzle_payload(puzzle) -> dict:
     }
 
 
-def run_statistical_validation(samples: int, start_seed: int = 10_000) -> dict:
+def run_statistical_validation(
+    samples: int,
+    start_seed: int = 10_000,
+    generation_max_attempts: int = 64,
+) -> dict:
     generator = MatrixGenerator(RuleRegistry())
 
     valid_count = 0
@@ -96,6 +101,8 @@ def run_statistical_validation(samples: int, start_seed: int = 10_000) -> dict:
     failure_pattern_timeline: list[str] = []
     rejection_events_sample: list[dict[str, object]] = []
     generated_puzzles: list = []
+    accepted_examples: list[dict[str, object]] = []
+    rejected_examples: list[dict[str, object]] = []
     total_generation_attempts = 0
     total_candidate_puzzles = 0
     duplicate_distractor_rejections = 0
@@ -104,13 +111,52 @@ def run_statistical_validation(samples: int, start_seed: int = 10_000) -> dict:
     for offset in range(samples):
         seed = start_seed + offset
         try:
-            puzzle = generator.generate(seed=seed)
+            puzzle = generator.generate(seed=seed, max_attempts=generation_max_attempts)
         except Exception:
             failure_count += 1
             continue
 
         valid_count += 1
         generated_puzzles.append(puzzle)
+        if len(accepted_examples) < 12:
+            accepted_examples.append(
+                {
+                    "seed": puzzle.seed,
+                    "rules": [rule.type.value for rule in puzzle.rules],
+                    "quality_score": puzzle.quality_score,
+                    "difficulty": puzzle.difficulty,
+                    "difficulty_label": puzzle.difficulty_label,
+                    "validation_status": (puzzle.quality_metadata or {}).get("validation_results", {}),
+                    "matrix": [
+                        [
+                            None
+                            if cell is None
+                            else {
+                                "shape": cell.shape,
+                                "rotation": cell.rotation,
+                                "size": cell.size,
+                                "color": cell.color,
+                            }
+                            for cell in row
+                        ]
+                        for row in puzzle.grid
+                    ],
+                    "correct_index": puzzle.correct_index,
+                    "answer_options": [
+                        {
+                            "label": option.label,
+                            "shape": option.figure.shape,
+                            "rotation": option.figure.rotation,
+                            "size": option.figure.size,
+                            "color": option.figure.color,
+                            "is_correct": option.is_correct,
+                            "reason": option.reason.value if option.reason is not None else None,
+                            "origin_rule": option.origin_rule.value if option.origin_rule is not None else None,
+                        }
+                        for option in puzzle.options
+                    ],
+                }
+            )
         if puzzle.explanation.strip():
             explanation_count += 1
         explanation_coverage_sum += _explanation_coverage(puzzle)
@@ -187,6 +233,8 @@ def run_statistical_validation(samples: int, start_seed: int = 10_000) -> dict:
                 failure_pattern_timeline.append(pattern)
             if len(rejection_events_sample) < 40:
                 rejection_events_sample.append(event)
+            if len(rejected_examples) < 20:
+                rejected_examples.append(event)
 
     denominator = max(valid_count, 1)
     quality_distribution = _quality_distribution(quality_scores)
@@ -209,6 +257,7 @@ def run_statistical_validation(samples: int, start_seed: int = 10_000) -> dict:
 
     return {
         "samples_requested": samples,
+        "generation_max_attempts": generation_max_attempts,
         "samples_generated": valid_count,
         "generation_failures": failure_count,
         "acceptance_rate": acceptance_rate,
@@ -236,6 +285,8 @@ def run_statistical_validation(samples: int, start_seed: int = 10_000) -> dict:
             "rejection_reason_by_validation_rule": dict(rejection_rule_counter),
             "rejection_reason_by_generator_rule_set": dict(rejection_ruleset_counter),
             "sample_rejection_events": rejection_events_sample,
+            "rejected_puzzle_examples": rejected_examples,
+            "accepted_puzzle_examples": accepted_examples,
         },
         "failure_pattern_report": {
             "rejection_reason": dict(failure_pattern_reason_counter),
@@ -346,15 +397,32 @@ def _failure_pattern_trend(pattern_timeline: list[str]) -> dict[str, str]:
     return trend
 
 
-def export_review_package(count: int, output: Path, seed: int = 2026) -> dict:
+def export_review_package(
+    count: int,
+    output: Path,
+    seed: int = 2026,
+    generation_max_attempts: int = 96,
+) -> dict:
     rng = random.Random(seed)
     generator = MatrixGenerator(RuleRegistry())
 
     records = []
-    for _ in range(count):
+    attempts = 0
+    max_attempts = max(count * 20, count + 1)
+    while len(records) < count and attempts < max_attempts:
+        attempts += 1
         puzzle_seed = rng.randrange(1, 2**31 - 1)
-        puzzle = generator.generate(seed=puzzle_seed)
+        try:
+            puzzle = generator.generate(seed=puzzle_seed, max_attempts=generation_max_attempts)
+        except ValueError:
+            continue
         records.append(_puzzle_payload(puzzle))
+
+    if len(records) < count:
+        raise ValueError(
+            "Unable to export requested number of review puzzles "
+            f"(requested={count}, generated={len(records)}, attempts={attempts})."
+        )
 
     package = {
         "count": count,
@@ -367,6 +435,8 @@ def export_review_package(count: int, output: Path, seed: int = 2026) -> dict:
     return {
         "output": str(output),
         "count": count,
+        "attempts": attempts,
+        "generation_max_attempts": generation_max_attempts,
     }
 
 
@@ -377,18 +447,40 @@ def main() -> None:
     validate_parser = subparsers.add_parser("validate", help="Run statistical quality validation")
     validate_parser.add_argument("--samples", type=int, default=10_000)
     validate_parser.add_argument("--start-seed", type=int, default=10_000)
+    validate_parser.add_argument("--generation-max-attempts", type=int, default=64)
     validate_parser.add_argument("--output", type=Path, default=Path("backend/reports/puzzle_quality_report.json"))
     validate_parser.add_argument("--top-output", type=Path, default=Path("backend/reports/top_100_quality_puzzles.json"))
 
     export_parser = subparsers.add_parser("export-review", help="Export puzzles for human quality review")
     export_parser.add_argument("--count", type=int, default=100)
     export_parser.add_argument("--seed", type=int, default=2026)
+    export_parser.add_argument("--generation-max-attempts", type=int, default=96)
     export_parser.add_argument("--output", type=Path, default=Path("backend/reports/human_review_package.json"))
+
+    framework_parser = subparsers.add_parser("review-framework", help="Run puzzle review framework")
+    framework_parser.add_argument("--count", type=int, default=1000)
+    framework_parser.add_argument("--start-seed", type=int, default=100_000)
+    framework_parser.add_argument("--generation-max-attempts", type=int, default=96)
+    framework_parser.add_argument("--max-seed-attempts", type=int, default=0)
+    framework_parser.add_argument(
+        "--output",
+        type=Path,
+        default=Path("backend/reports/puzzle_review_framework_report.json"),
+    )
+    framework_parser.add_argument(
+        "--po-output",
+        type=Path,
+        default=Path("backend/reports/product_owner_review_set.json"),
+    )
 
     args = parser.parse_args()
 
     if args.command == "validate":
-        report = run_statistical_validation(samples=args.samples, start_seed=args.start_seed)
+        report = run_statistical_validation(
+            samples=args.samples,
+            start_seed=args.start_seed,
+            generation_max_attempts=args.generation_max_attempts,
+        )
         top_puzzles = report.pop("top_100_puzzles", [])
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(report, indent=2), encoding="utf-8")
@@ -398,8 +490,27 @@ def main() -> None:
         return
 
     if args.command == "export-review":
-        summary = export_review_package(count=args.count, output=args.output, seed=args.seed)
+        summary = export_review_package(
+            count=args.count,
+            output=args.output,
+            seed=args.seed,
+            generation_max_attempts=args.generation_max_attempts,
+        )
         print(json.dumps(summary, indent=2))
+        return
+
+    if args.command == "review-framework":
+        result = run_puzzle_review_framework(
+            target_reviews=args.count,
+            start_seed=args.start_seed,
+            generation_max_attempts=args.generation_max_attempts,
+            max_seed_attempts=(None if args.max_seed_attempts <= 0 else args.max_seed_attempts),
+        )
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(json.dumps(result["framework_report"], indent=2), encoding="utf-8")
+        args.po_output.parent.mkdir(parents=True, exist_ok=True)
+        args.po_output.write_text(json.dumps(result["product_owner_review_set"], indent=2), encoding="utf-8")
+        print(json.dumps(result["framework_report"]["summary"], indent=2))
         return
 
 
