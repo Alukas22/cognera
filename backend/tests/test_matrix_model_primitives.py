@@ -46,6 +46,29 @@ def test_distractor_fields_are_assigned() -> None:
     assert distractor.difficulty == 0.6
 
 
+def test_distractor_as_dict_serializes_primitive_shape() -> None:
+    distractor = Distractor(
+        figure=_figure(),
+        reason=DistractorReason.WRONG_ROTATION,
+        explanation="Rotation differs.",
+        origin_rule=RuleType.ROTATION,
+        difficulty=0.6,
+    )
+
+    assert distractor.as_dict() == {
+        "figure": {
+            "shape": "triangle",
+            "rotation": 0,
+            "size": "medium",
+            "color": "red",
+        },
+        "reason": "WRONG_ROTATION",
+        "explanation": "Rotation differs.",
+        "origin_rule": "rotation",
+        "difficulty": 0.6,
+    }
+
+
 def test_distractor_optional_fields_default_to_none_and_zero() -> None:
     distractor = Distractor(
         figure=_figure(),
@@ -86,6 +109,52 @@ def test_answer_option_fields_are_assigned() -> None:
     assert option.difficulty == 0.5
 
 
+def test_answer_option_as_dict_serializes_optional_fields() -> None:
+    option = AnswerOption(
+        label="A",
+        figure=_figure(),
+        is_correct=True,
+        explanation="Correct.",
+        reason=DistractorReason.WRONG_ROTATION,
+        origin_rule=RuleType.ROTATION,
+        difficulty=0.5,
+    )
+
+    assert option.as_dict() == {
+        "label": "A",
+        "figure": {
+            "shape": "triangle",
+            "rotation": 0,
+            "size": "medium",
+            "color": "red",
+        },
+        "is_correct": True,
+        "explanation": "Correct.",
+        "reason": "WRONG_ROTATION",
+        "origin_rule": "rotation",
+        "difficulty": 0.5,
+    }
+
+
+def test_answer_option_as_dict_preserves_none_fields() -> None:
+    option = AnswerOption(label="B", figure=_figure(), is_correct=False)
+
+    assert option.as_dict() == {
+        "label": "B",
+        "figure": {
+            "shape": "triangle",
+            "rotation": 0,
+            "size": "medium",
+            "color": "red",
+        },
+        "is_correct": False,
+        "explanation": "",
+        "reason": None,
+        "origin_rule": None,
+        "difficulty": 0.0,
+    }
+
+
 def test_answer_option_optional_fields_have_defaults() -> None:
     option = AnswerOption(label="B", figure=_figure(), is_correct=False)
     assert option.explanation == ""
@@ -119,6 +188,28 @@ def test_difficulty_profile_fields_are_assigned() -> None:
     assert profile.distractor_strength == 0.7
 
 
+def test_difficulty_profile_as_dict_serializes_all_dimensions() -> None:
+    profile = DifficultyProfile(
+        overall=0.5,
+        working_memory=0.4,
+        pattern_complexity=0.5,
+        visual_complexity=0.3,
+        rule_complexity=0.6,
+        abstraction=0.5,
+        distractor_strength=0.7,
+    )
+
+    assert profile.as_dict() == {
+        "overall": 0.5,
+        "working_memory": 0.4,
+        "pattern_complexity": 0.5,
+        "visual_complexity": 0.3,
+        "rule_complexity": 0.6,
+        "abstraction": 0.5,
+        "distractor_strength": 0.7,
+    }
+
+
 def test_difficulty_profile_is_frozen() -> None:
     profile = DifficultyProfile(
         overall=0.5,
@@ -131,3 +222,31 @@ def test_difficulty_profile_is_frozen() -> None:
     )
     with pytest.raises((AttributeError, TypeError)):
         profile.overall = 1.0  # type: ignore[misc]
+
+
+@pytest.mark.parametrize(
+    ("field_name", "field_value"),
+    [
+        ("overall", -0.01),
+        ("working_memory", 1.01),
+        ("pattern_complexity", -0.1),
+        ("visual_complexity", 1.1),
+        ("rule_complexity", -0.5),
+        ("abstraction", 1.5),
+        ("distractor_strength", -1.0),
+    ],
+)
+def test_difficulty_profile_rejects_out_of_bounds_values(field_name: str, field_value: float) -> None:
+    kwargs = {
+        "overall": 0.5,
+        "working_memory": 0.4,
+        "pattern_complexity": 0.5,
+        "visual_complexity": 0.3,
+        "rule_complexity": 0.6,
+        "abstraction": 0.5,
+        "distractor_strength": 0.7,
+    }
+    kwargs[field_name] = field_value
+
+    with pytest.raises(ValueError, match=field_name):
+        DifficultyProfile(**kwargs)

@@ -8,6 +8,11 @@ from enum import Enum
 from typing import Any
 
 
+def _validate_unit_interval(name: str, value: float) -> None:
+    if not 0.0 <= value <= 1.0:
+        raise ValueError(f"{name} must be between 0.0 and 1.0")
+
+
 class RuleType(str, Enum):
     """Supported rule categories for Cognera matrix puzzles."""
 
@@ -75,6 +80,14 @@ class Figure:
     size: str
     color: str
 
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "shape": self.shape,
+            "rotation": self.rotation,
+            "size": self.size,
+            "color": self.color,
+        }
+
 
 class DistractorReason(str, Enum):
     """Semantic reason a distractor option is incorrect."""
@@ -103,6 +116,15 @@ class Distractor:
     origin_rule: RuleType | None = None
     difficulty: float = 0.0
 
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "figure": self.figure.as_dict(),
+            "reason": self.reason.value,
+            "explanation": self.explanation,
+            "origin_rule": None if self.origin_rule is None else self.origin_rule.value,
+            "difficulty": self.difficulty,
+        }
+
 
 @dataclass(frozen=True)
 class AnswerOption:
@@ -116,6 +138,17 @@ class AnswerOption:
     origin_rule: RuleType | None = None
     difficulty: float = 0.0
 
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "label": self.label,
+            "figure": self.figure.as_dict(),
+            "is_correct": self.is_correct,
+            "explanation": self.explanation,
+            "reason": None if self.reason is None else self.reason.value,
+            "origin_rule": None if self.origin_rule is None else self.origin_rule.value,
+            "difficulty": self.difficulty,
+        }
+
 
 @dataclass(frozen=True)
 class DifficultyProfile:
@@ -128,6 +161,26 @@ class DifficultyProfile:
     rule_complexity: float
     abstraction: float
     distractor_strength: float
+
+    def __post_init__(self) -> None:
+        _validate_unit_interval("overall", self.overall)
+        _validate_unit_interval("working_memory", self.working_memory)
+        _validate_unit_interval("pattern_complexity", self.pattern_complexity)
+        _validate_unit_interval("visual_complexity", self.visual_complexity)
+        _validate_unit_interval("rule_complexity", self.rule_complexity)
+        _validate_unit_interval("abstraction", self.abstraction)
+        _validate_unit_interval("distractor_strength", self.distractor_strength)
+
+    def as_dict(self) -> dict[str, float]:
+        return {
+            "overall": self.overall,
+            "working_memory": self.working_memory,
+            "pattern_complexity": self.pattern_complexity,
+            "visual_complexity": self.visual_complexity,
+            "rule_complexity": self.rule_complexity,
+            "abstraction": self.abstraction,
+            "distractor_strength": self.distractor_strength,
+        }
 
 
 class ContractViolationError(ValueError):
