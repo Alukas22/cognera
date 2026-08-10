@@ -33,8 +33,12 @@ def test_matrix_demo_endpoint_can_return_swedish_explanation() -> None:
 
     assert response.status_code == 200
     payload = response.json()
-    assert "Regel" in payload["explanation"]
-    assert "Kolumn" in payload["explanation"]
+    explanation = payload["explanation"]
+
+    assert "## Översikt" in explanation
+    assert "## Steg för steg" in explanation
+    assert "## Varför rätt svar är korrekt?" in explanation
+    assert "## Varför de andra alternativen är fel?" in explanation
 
 
 def test_matrix_demo_endpoint_is_deterministic() -> None:

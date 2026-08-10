@@ -31,9 +31,17 @@ def test_matrix_generate_endpoint_localizes_swedish_explanation() -> None:
 
     payload = client.post("/api/matrix/generate", json={"seed": 123, "language": "sv"}).json()
 
-    assert "Regel" in payload["explanation"]
-    assert "Alternativ" in payload["explanation"]
-    assert "Rule 1" not in payload["explanation"]
+    explanation = payload["explanation"]
+
+    assert "## Översikt" in explanation
+    assert "## Steg för steg" in explanation
+    assert "## Varför rätt svar är korrekt?" in explanation
+    assert "## Varför de andra alternativen är fel?" in explanation
+    assert "Rule 1" not in explanation
+    assert "Bryter mot" in explanation
+
+    forbidden_words = ["blå", "röd", "grön", "gul", "orange", "lila", "färg", "färgen"]
+    assert not any(word in explanation.lower() for word in forbidden_words)
 
 
 def test_matrix_generate_endpoint_is_deterministic_for_seed() -> None:

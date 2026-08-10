@@ -10,8 +10,11 @@
   --border: #cbc5b7;
   --panel: #f6f1e6;
   --panel-strong: #efe7d7;
-  --matrix-cell-min: 150px;
-  --option-card-min: 144px;
+  --matrix-cell-min: 182px;
+  --option-card-min: 176px;
+  --matrix-figure-size: 132px;
+  --option-figure-size: 112px;
+  --feedback-figure-size: 96px;
 }
 
 * {
@@ -28,7 +31,7 @@ body {
 }
 
 .app-shell {
-  max-width: 1400px;
+  max-width: 1560px;
   margin: 24px auto;
   padding: 16px;
   display: grid;
@@ -174,8 +177,8 @@ body {
 .matrix-board {
   display: grid;
   grid-template-columns: repeat(3, minmax(var(--matrix-cell-min), 1fr));
-  gap: 14px;
-  padding: 14px;
+  gap: 18px;
+  padding: 18px;
   background: linear-gradient(180deg, var(--panel) 0%, var(--panel-strong) 100%);
   border-radius: 16px;
   border: 1px solid var(--border);
@@ -186,7 +189,7 @@ body {
   border-radius: 14px;
   border: 1px solid var(--border);
   background: #fffefb;
-  padding: 12px;
+  padding: 14px;
   display: grid;
   align-content: center;
   justify-items: center;
@@ -228,13 +231,13 @@ body {
 .options-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  gap: 16px;
 }
 
 .option-button {
   background: #fffdf8;
   border: 1px solid var(--border);
-  padding: 14px;
+  padding: 16px;
   min-height: var(--option-card-min);
   display: grid;
   align-items: center;
@@ -244,7 +247,7 @@ body {
 }
 
 .option-visual {
-  min-height: 90px;
+  min-height: 122px;
   width: 100%;
   display: grid;
   place-items: center;
@@ -290,12 +293,12 @@ body {
 }
 
 .feedback-visual {
-  margin-top: 8px;
+  margin-top: 12px;
 }
 
 @media (min-width: 1100px) {
   .play-area {
-    grid-template-columns: minmax(0, 1.05fr) minmax(420px, 0.95fr);
+    grid-template-columns: minmax(0, 1.05fr) minmax(520px, 0.95fr);
     align-items: start;
   }
 
@@ -315,8 +318,8 @@ body {
   }
 
   :root {
-    --matrix-cell-min: 124px;
-    --option-card-min: 128px;
+    --matrix-cell-min: 140px;
+    --option-card-min: 144px;
   }
 }
 
@@ -341,8 +344,8 @@ body {
   }
 
   :root {
-    --matrix-cell-min: 106px;
-    --option-card-min: 114px;
+    --matrix-cell-min: 112px;
+    --option-card-min: 120px;
   }
 }
 

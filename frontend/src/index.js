@@ -57,7 +57,7 @@ async function loadPuzzle() {
   try {
     const nextPuzzleNumber = state.puzzleNumber + 1;
     const attemptLimit = nextPuzzleNumber <= 3 ? 10 : 6;
-    const uiLanguage = window.navigator.language ?? "en";
+    const uiLanguage = "sv";
     let bestPuzzle = null;
 
     for (let attempt = 0; attempt < attemptLimit; attempt++) {
@@ -83,7 +83,7 @@ async function loadPuzzle() {
       ...state,
       loading: false,
       appLoading: false,
-      errorMessage: "Unable to load a puzzle right now.",
+      errorMessage: "Det gick inte att ladda en uppgift just nu.",
     };
   }
 
@@ -110,7 +110,7 @@ async function loadHealth() {
     state = {
       ...state,
       appLoading: false,
-      healthError: "Unable to load health diagnostics.",
+      healthError: "Det gick inte att ladda driftsinformationen.",
     };
   }
 

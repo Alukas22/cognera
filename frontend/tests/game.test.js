@@ -86,4 +86,13 @@ describe("game state", () => {
     expect(isWithinBeginnerProgressionBand(0.2, 1)).toBe(true);
     expect(isWithinBeginnerProgressionBand(0.6, 1)).toBe(false);
   });
+
+  it("keeps the beginner band sensible across early puzzles", () => {
+    for (let puzzleNumber = 1; puzzleNumber <= 3; puzzleNumber++) {
+      const band = getBeginnerProgressionBand(puzzleNumber);
+      expect(band.min).toBeLessThan(band.max);
+      expect(band.min).toBeGreaterThanOrEqual(0);
+      expect(band.max).toBeLessThanOrEqual(1);
+    }
+  });
 });

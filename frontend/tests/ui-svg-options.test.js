@@ -58,8 +58,8 @@ function makeState() {
     developerMode: false,
     health: null,
     selectedIndex: null,
-    isResolved: false,
-    lastResult: null,
+    isResolved: true,
+    lastResult: "correct",
   };
 }
 
@@ -86,5 +86,13 @@ describe("ui svg answer options", () => {
     expect(figureRendererSpy).toHaveBeenCalled();
     expect(root.innerHTML).toContain("data-testid='mock-figure'");
     expect(root.innerHTML).not.toContain("option-label");
+
+    const matrixCall = figureRendererSpy.mock.calls.find((call) => call[1]?.className === "matrix-figure-svg");
+    const optionCall = figureRendererSpy.mock.calls.find((call) => call[1]?.className === "option-figure-svg");
+    const feedbackCall = figureRendererSpy.mock.calls.find((call) => call[1]?.className === "feedback-figure-svg");
+
+    expect(matrixCall?.[1]?.sizePx).toBeGreaterThanOrEqual(132);
+    expect(optionCall?.[1]?.sizePx).toBeGreaterThanOrEqual(112);
+    expect(feedbackCall?.[1]?.sizePx).toBeGreaterThanOrEqual(96);
   });
 });

@@ -10,7 +10,7 @@ function matrixCell(cell, isMissing) {
     ? "?"
     : `
       <div class="figure-wrap" data-testid="matrix-figure">
-        ${FigureRenderer(cell, { sizePx: 96, className: "matrix-figure-svg" })}
+        ${FigureRenderer(cell, { sizePx: 132, className: "matrix-figure-svg" })}
       </div>
     `;
 
@@ -37,12 +37,12 @@ function optionButton(state, option, index) {
       class="${optionClass}"
       data-action="select-option"
       data-testid="option-${index}"
-      aria-label="Option ${option.label}"
+      aria-label="Alternativ ${option.label}"
       data-index="${index}"
       ${state.isResolved || state.loading ? "disabled" : ""}
     >
       <span class="option-visual" data-testid="option-visual-${index}">
-        ${FigureRenderer(option, { sizePx: 76, className: "option-figure-svg" })}
+        ${FigureRenderer(option, { sizePx: 112, className: "option-figure-svg" })}
       </span>
     </button>
   `;
@@ -50,18 +50,18 @@ function optionButton(state, option, index) {
 
 function feedbackBlock(state) {
   if (!state.isResolved || !state.puzzle) {
-    return "<p class='feedback feedback--neutral'>Select an answer to submit this puzzle.</p>";
+    return "<p class='feedback feedback--neutral'>Välj ett alternativ för att lämna in uppgiften.</p>";
   }
 
   const statusClass = state.lastResult === "correct" ? "feedback--correct" : "feedback--incorrect";
-  const statusText = state.lastResult === "correct" ? "Correct" : "Incorrect";
+  const statusText = state.lastResult === "correct" ? "Rätt" : "Fel";
   const correctOption = state.puzzle.options[state.puzzle.correct_index];
 
   return `
     <div class="feedback-wrap">
       <p class="feedback ${statusClass}">${statusText}</p>
-      <p class="feedback-answer" data-testid="correct-answer">Correct answer: ${correctOption.label}</p>
-      <div class="feedback-visual">${FigureRenderer(correctOption, { sizePx: 44, className: "feedback-figure-svg" })}</div>
+      <p class="feedback-answer" data-testid="correct-answer">Rätt svar: ${correctOption.label}</p>
+      <div class="feedback-visual">${FigureRenderer(correctOption, { sizePx: 96, className: "feedback-figure-svg" })}</div>
       <p class="feedback-explanation" data-testid="explanation-text">${state.puzzle.explanation}</p>
     </div>
   `;
@@ -71,7 +71,7 @@ function loadingOverlay(state) {
   if (!state.loading && !state.appLoading) {
     return "";
   }
-  return "<div class='loading-overlay'><div class='spinner'></div><span>Loading…</span></div>";
+  return "<div class='loading-overlay'><div class='spinner'></div><span>Laddar…</span></div>";
 }
 
 function errorPanel(state) {
@@ -80,9 +80,9 @@ function errorPanel(state) {
   }
   return `
     <section class="card fatal-panel" data-role="fatal-error">
-      <h2>Connection problem</h2>
+      <h2>Anslutningsproblem</h2>
       <p>${state.errorMessage}</p>
-      <button class="action-button" data-action="retry">Retry</button>
+      <button class="action-button" data-action="retry">Försök igen</button>
     </section>
   `;
 }
@@ -102,27 +102,27 @@ export function renderHealthView(root, state, handlers) {
         <div class="brand">
           <div class="brand-mark">◈</div>
           <div>
-            <h1>Cognera Health Check</h1>
-            <p class="tagline">Deployment diagnostics</p>
+            <h1>Cognera driftskontroll</h1>
+            <p class="tagline">Status och diagnostik</p>
           </div>
         </div>
         <div class="header-controls">
-          <button class="ghost-button" data-action="back-to-game">Back to Game</button>
-          <button class="action-button" data-action="refresh-health">Refresh</button>
+          <button class="ghost-button" data-action="back-to-game">Till spelet</button>
+          <button class="action-button" data-action="refresh-health">Uppdatera</button>
         </div>
       </header>
       ${
         state.healthError
-          ? `<section class="card fatal-panel"><h2>Health check failed</h2><p>${state.healthError}</p></section>`
+          ? `<section class="card fatal-panel"><h2>Driftskontrollen misslyckades</h2><p>${state.healthError}</p></section>`
           : ""
       }
       <section class="card health-grid">
-        <article class="health-item"><span>Backend Status</span><strong>${health ? health.backend_status : "--"}</strong></article>
-        <article class="health-item"><span>Backend Version</span><strong>${health ? health.backend_version : "--"}</strong></article>
-        <article class="health-item"><span>Application</span><strong>${health ? health.backend_name : "--"}</strong></article>
-        <article class="health-item"><span>Frontend Version</span><strong>${health ? health.frontend_version : "--"}</strong></article>
-        <article class="health-item"><span>Frontend Mode</span><strong>${health ? health.frontend_mode : "--"}</strong></article>
-        <article class="health-item"><span>Environment</span><strong>${health ? health.deployment_environment : "--"}</strong></article>
+        <article class="health-item"><span>Bakgrundsstatus</span><strong>${health ? health.backend_status : "--"}</strong></article>
+        <article class="health-item"><span>Bakgrundsversion</span><strong>${health ? health.backend_version : "--"}</strong></article>
+        <article class="health-item"><span>Applikation</span><strong>${health ? health.backend_name : "--"}</strong></article>
+        <article class="health-item"><span>Framkantsversion</span><strong>${health ? health.frontend_version : "--"}</strong></article>
+        <article class="health-item"><span>Framkantsläge</span><strong>${health ? health.frontend_mode : "--"}</strong></article>
+        <article class="health-item"><span>Miljö</span><strong>${health ? health.deployment_environment : "--"}</strong></article>
       </section>
       ${loadingOverlay(state)}
     </main>
@@ -145,15 +145,15 @@ export function renderApp(root, state, handlers) {
           <div class="brand-mark">◈</div>
           <div>
             <h1>Cognera</h1>
-            <p class="tagline">Cognitive Matrix Assessment</p>
+            <p class="tagline">Kognitiv matrisbedömning</p>
           </div>
         </div>
         <div class="header-controls">
-          <button class="action-button" data-action="generate" data-testid="generate-button">Generate Puzzle</button>
-          <div class="pill">Difficulty ${puzzleDifficulty}</div>
+          <button class="action-button" data-action="generate" data-testid="generate-button">Skapa uppgift</button>
+          <div class="pill">Svårighet ${puzzleDifficulty}</div>
           <div class="pill" data-role="timer">${elapsed}</div>
           ${diagnosticsPill(state)}
-          <button class="ghost-button" data-action="open-health">Health</button>
+          <button class="ghost-button" data-action="open-health">Drift</button>
         </div>
       </header>
 
@@ -161,26 +161,26 @@ export function renderApp(root, state, handlers) {
 
       <section class="stats-grid">
         <article class="card stat">
-          <span>Current Score</span>
+          <span>Poäng</span>
           <strong data-testid="current-score">${state.correctAnswers}</strong>
         </article>
         <article class="card stat">
-          <span>Puzzle Number</span>
+          <span>Uppgiftsnummer</span>
           <strong data-testid="puzzle-number">${state.puzzleNumber}</strong>
         </article>
         <article class="card stat">
-          <span>Accuracy</span>
+          <span>Träffsäkerhet</span>
           <strong>${accuracy}</strong>
         </article>
         <article class="card stat">
-          <span>Average Difficulty</span>
+          <span>Genomsnittlig svårighet</span>
           <strong>${averageDifficulty}</strong>
         </article>
       </section>
 
       <section class="play-area">
         <section class="card board-panel">
-          <h2>Matrix</h2>
+          <h2>Matris</h2>
           ${
             state.puzzle
               ? `<div class="matrix-board">${state.puzzle.grid
@@ -196,20 +196,20 @@ export function renderApp(root, state, handlers) {
                       .join("")
                   )
                   .join("")}</div>`
-              : "<p class='empty-state'>Generate a puzzle to begin.</p>"
+              : "<p class='empty-state'>Skapa en uppgift för att börja.</p>"
           }
         </section>
 
         <section class="card answer-panel">
           <div class="answer-header">
-            <h2>Answer Options</h2>
+            <h2>Svarsalternativ</h2>
             <button
               class="ghost-button"
               data-action="next"
               data-testid="next-puzzle-button"
               ${state.loading ? "disabled" : ""}
             >
-              Next Puzzle
+              Nästa uppgift
             </button>
           </div>
           ${
@@ -219,7 +219,7 @@ export function renderApp(root, state, handlers) {
           }
           ${
             state.loading
-              ? "<p class='feedback feedback--neutral'>Loading puzzle...</p>"
+              ? "<p class='feedback feedback--neutral'>Laddar uppgift...</p>"
               : ""
           }
           ${
