@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 
+from .figure_components import derive_components
 from .models import DifficultyProfile, Figure, MatrixPuzzle, RuleType
 
 
@@ -137,13 +138,14 @@ class CognitiveDifficultyEngine:
     def _active_dimensions(self, puzzle: MatrixPuzzle) -> list[str]:
         visible = self._visible_cells(puzzle)
         dimensions = []
-        if len({cell.shape for cell in visible}) > 1 or any(rule.type in {RuleType.SHAPE, RuleType.COUNT, RuleType.POSITION, RuleType.MIRROR} for rule in puzzle.rules):
+        components = [derive_components(cell) for cell in visible]
+        if len({component.outer_shell for component in components}) > 1 or any(rule.type in {RuleType.SHAPE, RuleType.POSITION, RuleType.MIRROR} for rule in puzzle.rules):
             dimensions.append("shape")
-        if len({cell.rotation for cell in visible}) > 1 or any(rule.type == RuleType.ROTATION for rule in puzzle.rules):
+        if len({component.orientation for component in components}) > 1 or any(rule.type == RuleType.ROTATION for rule in puzzle.rules):
             dimensions.append("rotation")
-        if len({cell.size for cell in visible}) > 1 or any(rule.type == RuleType.SIZE for rule in puzzle.rules):
+        if len({component.repeated_count for component in components}) > 1 or any(rule.type in {RuleType.SIZE, RuleType.COUNT} for rule in puzzle.rules):
             dimensions.append("size")
-        if len({cell.color for cell in visible}) > 1 or any(rule.type == RuleType.COLOR for rule in puzzle.rules):
+        if len({component.nested_figure for component in components}) > 1 or any(rule.type == RuleType.COLOR for rule in puzzle.rules):
             dimensions.append("color")
         return dimensions
 

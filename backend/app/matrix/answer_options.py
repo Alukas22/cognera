@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import random
 
+from .figure_components import color_from_components, derive_components, shell_from_components, size_from_components
 from .models import AnswerOption, Distractor, DistractorReason, Figure, MatrixPuzzle, Rule, RuleType
 from .rules import COLORS, ROTATIONS, SHAPES, SIZES
 
@@ -278,15 +279,47 @@ class AnswerOptionEngine:
             value = self._pick_alternative(list(ROTATIONS), puzzle.correct_answer.rotation)
             return None if value is None else self._replace(puzzle.correct_answer, rotation=value)
         if rule_type == RuleType.SIZE:
-            value = self._pick_alternative(list(SIZES), puzzle.correct_answer.size)
-            return None if value is None else self._replace(puzzle.correct_answer, size=value)
+            components = derive_components(puzzle.correct_answer)
+            components = type(components)(**{**components.__dict__, "repeated_count": max(1, components.repeated_count - 1)})
+            return self._figure_from_components(components, puzzle.correct_answer.rotation)
         if rule_type == RuleType.COLOR:
-            value = self._pick_alternative(list(COLORS), puzzle.correct_answer.color)
-            return None if value is None else self._replace(puzzle.correct_answer, color=value)
+            components = derive_components(puzzle.correct_answer)
+            swapped = {
+                "diamond_core": "circle_core",
+                "circle_core": "triangle_core",
+                "triangle_core": "square_core",
+                "square_core": "diamond_core",
+            }[components.nested_figure]
+            motif = {
+                "circle_core": "dot",
+                "triangle_core": "slash",
+                "square_core": "cross",
+                "diamond_core": "bars",
+            }[swapped]
+            components = type(components)(**{**components.__dict__, "nested_figure": swapped, "repeated_motif": motif})
+            return self._figure_from_components(components, puzzle.correct_answer.rotation)
         if rule_type in {RuleType.SHAPE, RuleType.COUNT, RuleType.POSITION, RuleType.MIRROR}:
-            value = self._pick_alternative(list(SHAPES), puzzle.correct_answer.shape)
-            return None if value is None else self._replace(puzzle.correct_answer, shape=value)
+            components = derive_components(puzzle.correct_answer)
+            alt_shapes = [shape for shape in SHAPES if shape != puzzle.correct_answer.shape]
+            if not alt_shapes:
+                return None
+            replacement = alt_shapes[0]
+            shell = derive_components(self._replace(puzzle.correct_answer, shape=replacement)).outer_shell
+            region = derive_components(self._replace(puzzle.correct_answer, shape=replacement)).internal_regions
+            corners = derive_components(self._replace(puzzle.correct_answer, shape=replacement)).corners
+            internal_lines = derive_components(self._replace(puzzle.correct_answer, shape=replacement)).internal_lines
+            symmetry_group = derive_components(self._replace(puzzle.correct_answer, shape=replacement)).symmetry_group
+            components = type(components)(**{**components.__dict__, "outer_shell": shell, "internal_regions": region, "corners": corners, "internal_lines": internal_lines, "symmetry_group": symmetry_group})
+            return self._figure_from_components(components, puzzle.correct_answer.rotation)
         return None
+
+    def _figure_from_components(self, components, rotation: int) -> Figure:
+        return Figure(
+            shape=shell_from_components(components),
+            rotation=rotation,
+            size=size_from_components(components),
+            color=color_from_components(components),
+        )
 
     def _shape_candidates(self, puzzle: MatrixPuzzle) -> list[str]:
         visible_shapes = []

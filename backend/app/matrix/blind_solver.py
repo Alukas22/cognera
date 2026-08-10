@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from .figure_components import derive_components
 from .models import AnswerOption, Figure
 
 
@@ -70,8 +71,32 @@ class BlindSolver:
         score += self._feature_pattern_score(grid, "rotation")
         score += self._feature_pattern_score(grid, "size")
         score += self._feature_pattern_score(grid, "color")
+        score += self._component_pattern_score(grid)
         score += self._mirror_score(grid)
         score += self._diagonal_consistency_score(grid)
+        return score
+
+    def _component_pattern_score(self, grid: tuple[tuple[Figure, ...], ...]) -> float:
+        line_scores: list[float] = []
+        for row in grid:
+            line_scores.append(self._component_sequence_score([derive_components(cell) for cell in row]))
+        for col in range(3):
+            line_scores.append(self._component_sequence_score([derive_components(grid[row][col]) for row in range(3)]))
+        return sum(line_scores) / len(line_scores)
+
+    def _component_sequence_score(self, components: list) -> float:
+        outer = [component.outer_shell for component in components]
+        nested = [component.nested_figure for component in components]
+        repeats = [component.repeated_count for component in components]
+        orientation = [component.orientation for component in components]
+
+        score = 0.0
+        score += 0.3 if len(set(outer)) in {1, 3} else 0.12
+        score += 0.2 if len(set(nested)) in {1, 3} else 0.08
+        score += 0.25 if repeats[1] - repeats[0] == repeats[2] - repeats[1] else 0.08
+        rotation_step_a = (orientation[1] - orientation[0]) % 360
+        rotation_step_b = (orientation[2] - orientation[1]) % 360
+        score += 0.25 if rotation_step_a == rotation_step_b else 0.1
         return score
 
     def _feature_pattern_score(self, grid: tuple[tuple[Figure, ...], ...], feature: str) -> float:
@@ -140,9 +165,4 @@ class BlindSolver:
         return 0.3
 
     def _figure_equal(self, first: Figure, second: Figure) -> bool:
-        return (
-            first.shape == second.shape
-            and first.rotation == second.rotation
-            and first.size == second.size
-            and first.color == second.color
-        )
+        return derive_components(first).signature() == derive_components(second).signature()

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Callable
 
+from .figure_components import component_distance
 from .models import Figure, MatrixPuzzle, RuleType
 
 
@@ -177,7 +178,7 @@ class PuzzleQualityEngine:
         for option in distractors:
             if option.origin_rule in active_rules:
                 plausible += 1
-            distance = self._attribute_distance(option.figure, puzzle.correct_answer)
+            distance = component_distance(option.figure, puzzle.correct_answer)
             if distance == 1:
                 one_step_mistakes += 1
 
@@ -203,14 +204,7 @@ class PuzzleQualityEngine:
         return _clamp(0.45 * depth + 0.30 * diversity + 0.25 * interaction)
 
     def _attribute_distance(self, first: Figure, second: Figure) -> int:
-        return sum(
-            [
-                first.shape != second.shape,
-                first.rotation != second.rotation,
-                first.size != second.size,
-                first.color != second.color,
-            ]
-        )
+        return component_distance(first, second)
 
     def _figure_key(self, figure: Figure) -> tuple[str, int, str, str]:
         return (figure.shape, figure.rotation, figure.size, figure.color)

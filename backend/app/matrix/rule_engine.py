@@ -27,6 +27,16 @@ SHAPE_RULE_TYPES = {
     RuleType.MIRROR,
 }
 
+STRUCTURAL_RULE_TYPES = {
+    RuleType.ROTATION,
+    RuleType.SIZE,
+    RuleType.MIRROR,
+    RuleType.COLOR,
+}
+
+COMPONENT_RULE_TYPES = STRUCTURAL_RULE_TYPES | {RuleType.COUNT}
+DYNAMIC_COMPONENT_RULE_TYPES = {RuleType.SIZE, RuleType.ROTATION}
+
 
 class RuleConstraintEngine:
     """Backward-compatible rule combination validator for legacy test contracts."""
@@ -229,8 +239,7 @@ class MatrixGenerator:
         for attempt in range(max_attempts):
             attempt_seed = seed + (attempt * 7919)
             rng = random.Random(attempt_seed)
-            selection_count = rng.randint(2, min(4, len(available_rules)))
-            selected_types = rng.sample(available_rules, selection_count)
+            selected_types = self._select_rule_types(rng, available_rules)
             selected_rules = [self.registry.get(rule_type) for rule_type in selected_types]
             composite = CompositeRule(selected_rules)
             raw_puzzle = composite.generate(attempt_seed)
@@ -280,6 +289,37 @@ class MatrixGenerator:
             validation.get("quality_engine_acceptance")
             and validation.get("human_reasoning_validator_acceptance")
         )
+
+    def _select_rule_types(self, rng: random.Random, available_rules: list[RuleType]) -> list[RuleType]:
+        minimum = 3 if len(available_rules) >= 3 else 2
+        maximum = min(4, len(available_rules))
+
+        for _ in range(24):
+            selection_count = rng.randint(minimum, maximum)
+            selected_types = rng.sample(available_rules, selection_count)
+            if self._supports_component_reasoning(selected_types):
+                return selected_types
+
+        fallback_count = minimum
+        return rng.sample(available_rules, fallback_count)
+
+    def _supports_component_reasoning(self, selected_types: list[RuleType]) -> bool:
+        component_count = sum(1 for rule_type in selected_types if rule_type in COMPONENT_RULE_TYPES)
+        structural_count = sum(1 for rule_type in selected_types if rule_type in STRUCTURAL_RULE_TYPES)
+        dynamic_count = sum(1 for rule_type in selected_types if rule_type in DYNAMIC_COMPONENT_RULE_TYPES)
+        abstract_shape_count = sum(1 for rule_type in selected_types if rule_type in {RuleType.SHAPE, RuleType.POSITION})
+
+        if len(selected_types) < 3:
+            return False
+        if structural_count < 1:
+            return False
+        if dynamic_count < 1:
+            return False
+        if component_count < 2:
+            return False
+        if abstract_shape_count == len(selected_types):
+            return False
+        return True
 
     def _finalize_puzzle(
         self,

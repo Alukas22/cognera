@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from .figure_components import component_distance
 from .models import Figure, MatrixPuzzle, RuleType
 
 
@@ -114,11 +115,4 @@ def _symmetric_rotation_used(puzzle: MatrixPuzzle) -> bool:
 
 
 def _attribute_distance(first: Figure, second: Figure) -> int:
-    return sum(
-        [
-            first.shape != second.shape,
-            first.rotation != second.rotation,
-            first.size != second.size,
-            first.color != second.color,
-        ]
-    )
+    return component_distance(first, second)

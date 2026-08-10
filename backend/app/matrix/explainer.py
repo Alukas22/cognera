@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+from .figure_components import describe_component_change, structure_summary
 from .models import Figure, MatrixPuzzle
 
 
 def _describe_figure(figure: Figure) -> str:
-    return f"{figure.size} {figure.color} {figure.shape} at {figure.rotation}\N{DEGREE SIGN}"
+    return f"{figure.size} {figure.color} {figure.shape} at {figure.rotation}\N{DEGREE SIGN} ({structure_summary(figure)})"
 
 
 def _format_cell(cell: Figure | None) -> str:
@@ -25,7 +26,7 @@ def explain_puzzle(puzzle: MatrixPuzzle) -> str:
 
     for index, rule in enumerate(puzzle.rules, start=1):
         lines.append(
-            f"Rule {index}: {rule.type.value.capitalize()} rule -> {rule.value}"
+            f"Rule {index}: {rule.type.value.capitalize()} rule -> {rule.value}; this {describe_component_change(rule.type.value)}"
         )
 
     lines.append(
