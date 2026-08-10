@@ -7,6 +7,10 @@
     }
   ],
   "routes": [
+    { "src": "/api/(.*)", "dest": "https://cognera-production.up.railway.app/api/$1" },
+    { "src": "/matrix/(.*)", "dest": "https://cognera-production.up.railway.app/matrix/$1" },
+    { "src": "/health", "dest": "https://cognera-production.up.railway.app/health" },
+    { "src": "/version", "dest": "https://cognera-production.up.railway.app/version" },
     { "src": "/(.*)", "dest": "/index.html" }
   ]
 }
