@@ -11,7 +11,7 @@ from typing import Any, ClassVar
 from .models import CognitiveSkill, Figure, MatrixPuzzle, Rule, RuleType, SkillProfile
 
 
-SHAPES = ["triangle", "square", "circle", "diamond"]
+SHAPES = ["triangle", "square", "circle", "diamond", "pentagon", "hexagon"]
 SIZES = ["small", "medium", "large"]
 COLORS = ["black", "white", "red", "blue"]
 ROTATIONS = (0, 90, 180, 270)

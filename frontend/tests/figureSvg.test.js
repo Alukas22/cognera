@@ -11,8 +11,10 @@ describe("renderFigureSvg", () => {
 
     expect(circle).toContain("<circle");
     expect(square).toContain("<rect");
-    expect(triangle).toContain("<polygon points=\"50,18 82,79 18,79\"");
-    expect(diamond).toContain("<polygon points=\"50,14 86,50 50,86 14,50\"");
+    expect(triangle).toContain('class="figure-shell"');
+    expect(triangle).toContain("<path d=\"M50 20 L50 80");
+    expect(diamond).toContain("<polygon");
+    expect(diamond).toContain("stroke-opacity=\"0.55\"");
   });
 
   it("renders rotation, encoded visual tone and size via transform and fill", () => {
@@ -24,9 +26,9 @@ describe("renderFigureSvg", () => {
     expect(rendered).toContain("class=\"custom-svg\"");
     expect(rendered).toContain("width=\"80\"");
     expect(rendered).toContain("rotate(270)");
-    expect(rendered).toContain("scale(0.96)");
-    expect(rendered).toContain("tone-red");
-    expect(rendered).toContain("url(#tone-red)");
+    expect(rendered).toContain("scale(0.94)");
+    expect(rendered).toContain("figure-shell");
+    expect(rendered).toContain("<polygon points=\"50.00,34.00 63.86,58.00 36.14,58.00\"");
   });
 
   it("matches snapshot for deterministic visual markup", () => {
@@ -48,10 +50,14 @@ describe("renderFigureSvg", () => {
             focusable=\"false\"
             role=\"img\"
           >
-            <defs><pattern id=\"tone-orange\" width=\"12\" height=\"12\" patternUnits=\"userSpaceOnUse\" patternTransform=\"rotate(45)\"><rect width=\"12\" height=\"12\" fill=\"#f4efe6\" /><line x1=\"0\" y1=\"0\" x2=\"0\" y2=\"12\" stroke=\"#111111\" stroke-width=\"2.2\" /></pattern></defs>
-            <rect x=\"6\" y=\"6\" width=\"88\" height=\"88\" rx=\"12\" fill=\"#fcfcf8\" stroke=\"#d8d6cd\" stroke-width=\"1.2\" />
-            <g transform=\"translate(50 50) rotate(90) scale(0.62) translate(-50 -50)\">
-              <rect x=\"23\" y=\"23\" width=\"54\" height=\"54\" fill=\"url(#tone-orange)\" stroke=\"#111111\" stroke-width=\"3.6\" rx=\"2\" />
+            <rect x=\"6\" y=\"6\" width=\"88\" height=\"88\" rx=\"12\" fill=\"#f4ede4\" stroke=\"#d8d3c5\" stroke-width=\"1.2\" />
+            <g transform=\"translate(50 50) rotate(90) scale(0.66) translate(-50 -50)\">
+              <rect class=\"figure-shell\" x=\"21\" y=\"21\" width=\"58\" height=\"58\" rx=\"2\" fill=\"#fffaf6\" stroke=\"#121212\" stroke-width=\"3.2\" />
+              
+              <path d=\"M35 21 V79 M65 21 V79 M21 35 H79 M21 65 H79\" stroke=\"#64584c\" stroke-width=\"1.3\" stroke-opacity=\"0.55\" />
+              
+              <path d=\"M44 46 L50 54 L56 46\" fill=\"none\" stroke=\"#121212\" stroke-width=\"1.9\" stroke-linecap=\"round\" stroke-linejoin=\"round\" />
+              <path d=\"M40 24 L50 16 L60 24\" fill=\"none\" stroke=\"#64584c\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" />
             </g>
           </svg>
         "
