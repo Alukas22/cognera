@@ -11,11 +11,11 @@ describe("renderFigureSvg", () => {
 
     expect(circle).toContain("<circle");
     expect(square).toContain("<rect");
-    expect(triangle).toContain("<polygon points=\"50,16 84,80 16,80\"");
-    expect(diamond).toContain("<polygon points=\"50,12 88,50 50,88 12,50\"");
+    expect(triangle).toContain("<polygon points=\"50,18 82,79 18,79\"");
+    expect(diamond).toContain("<polygon points=\"50,14 86,50 50,86 14,50\"");
   });
 
-  it("renders rotation, color and size via transform and fill", () => {
+  it("renders rotation, encoded visual tone and size via transform and fill", () => {
     const rendered = renderFigureSvg(
       { shape: "triangle", rotation: 270, size: "large", color: "red" },
       { sizePx: 80, className: "custom-svg" }
@@ -25,7 +25,8 @@ describe("renderFigureSvg", () => {
     expect(rendered).toContain("width=\"80\"");
     expect(rendered).toContain("rotate(270)");
     expect(rendered).toContain("scale(0.96)");
-    expect(rendered).toContain("#dc2626");
+    expect(rendered).toContain("tone-red");
+    expect(rendered).toContain("url(#tone-red)");
   });
 
   it("matches snapshot for deterministic visual markup", () => {
@@ -47,8 +48,10 @@ describe("renderFigureSvg", () => {
             focusable=\"false\"
             role=\"img\"
           >
+            <defs><pattern id=\"tone-orange\" width=\"12\" height=\"12\" patternUnits=\"userSpaceOnUse\" patternTransform=\"rotate(45)\"><rect width=\"12\" height=\"12\" fill=\"#f4efe6\" /><line x1=\"0\" y1=\"0\" x2=\"0\" y2=\"12\" stroke=\"#111111\" stroke-width=\"2.2\" /></pattern></defs>
+            <rect x=\"6\" y=\"6\" width=\"88\" height=\"88\" rx=\"12\" fill=\"#fcfcf8\" stroke=\"#d8d6cd\" stroke-width=\"1.2\" />
             <g transform=\"translate(50 50) rotate(90) scale(0.62) translate(-50 -50)\">
-              <rect x=\"22\" y=\"22\" width=\"56\" height=\"56\" fill=\"#f97316\" stroke=\"#0f172a\" stroke-opacity=\"0.34\" stroke-width=\"4\" rx=\"4\" />
+              <rect x=\"23\" y=\"23\" width=\"54\" height=\"54\" fill=\"url(#tone-orange)\" stroke=\"#111111\" stroke-width=\"3.6\" rx=\"2\" />
             </g>
           </svg>
         "
