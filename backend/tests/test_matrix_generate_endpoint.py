@@ -2,7 +2,8 @@
 
 from fastapi.testclient import TestClient
 
-from backend.app.main import app
+from backend.app.main import app, _project_vertical_slice_options
+from backend.app.matrix.models import AnswerOption, DistractorReason, Figure
 
 
 def test_matrix_generate_endpoint_returns_vertical_slice_payload() -> None:
@@ -42,3 +43,63 @@ def test_legacy_matrix_generate_endpoint_still_works() -> None:
 
     assert response.status_code == 200
     assert response.json()["seed"] == 321
+
+
+def test_vertical_slice_projection_prefers_stronger_and_more_diverse_distractors() -> None:
+    puzzle = type("Puzzle", (), {})()
+    puzzle.correct_index = 0
+    puzzle.options = (
+        AnswerOption(
+            label="A",
+            figure=Figure("circle", 0, "small", "black"),
+            is_correct=True,
+            difficulty=0.0,
+        ),
+        AnswerOption(
+            label="B",
+            figure=Figure("circle", 90, "small", "black"),
+            is_correct=False,
+            difficulty=0.2,
+            reason=DistractorReason.WRONG_ROTATION,
+        ),
+        AnswerOption(
+            label="C",
+            figure=Figure("square", 0, "small", "black"),
+            is_correct=False,
+            difficulty=0.9,
+            reason=DistractorReason.WRONG_SHAPE,
+        ),
+        AnswerOption(
+            label="D",
+            figure=Figure("circle", 180, "small", "black"),
+            is_correct=False,
+            difficulty=0.8,
+            reason=DistractorReason.WRONG_ROTATION,
+        ),
+        AnswerOption(
+            label="E",
+            figure=Figure("circle", 0, "medium", "black"),
+            is_correct=False,
+            difficulty=0.85,
+            reason=DistractorReason.WRONG_SIZE,
+        ),
+        AnswerOption(
+            label="F",
+            figure=Figure("circle", 0, "small", "red"),
+            is_correct=False,
+            difficulty=0.7,
+            reason=DistractorReason.WRONG_COLOR,
+        ),
+    )
+
+    options, correct_index = _project_vertical_slice_options(puzzle)
+
+    assert correct_index == 0
+    assert len(options) == 4
+    assert options[0]["is_correct"] is True
+    assert [option["reason"] for option in options[1:]] == [
+        "WRONG_SHAPE",
+        "WRONG_SIZE",
+        "WRONG_ROTATION",
+    ]
+    assert [option["difficulty"] for option in options[1:]] == [0.9, 0.85, 0.8]

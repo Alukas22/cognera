@@ -122,15 +122,51 @@ def _serialize_difficulty_profile(profile) -> dict[str, float]:
     return profile.as_dict()
 
 
+def _option_selection_priority(option) -> tuple[float, int, str, str]:
+    return (
+        float(option.difficulty),
+        0 if option.reason is not None else 1,
+        "" if option.reason is None else option.reason.value,
+        option.label,
+    )
+
+
 def _project_vertical_slice_options(puzzle) -> tuple[list[dict[str, Any]], int]:
     correct_index = puzzle.correct_index
-    candidate_indices = [correct_index]
-    candidate_indices.extend(
-        index
+    incorrect_candidates = [
+        (index, option)
         for index, option in enumerate(puzzle.options)
         if index != correct_index and not option.is_correct
-    )
-    selected_indices = sorted(candidate_indices[:4])
+    ]
+
+    selected_incorrect_indices: list[int] = []
+    covered_reasons: set[str] = set()
+    for index, option in sorted(
+        incorrect_candidates,
+        key=lambda item: _option_selection_priority(item[1]),
+        reverse=True,
+    ):
+        reason = None if option.reason is None else option.reason.value
+        if reason is None or reason in covered_reasons:
+            continue
+        selected_incorrect_indices.append(index)
+        covered_reasons.add(reason)
+        if len(selected_incorrect_indices) == 3:
+            break
+
+    if len(selected_incorrect_indices) < 3:
+        for index, option in sorted(
+            incorrect_candidates,
+            key=lambda item: _option_selection_priority(item[1]),
+            reverse=True,
+        ):
+            if index in selected_incorrect_indices:
+                continue
+            selected_incorrect_indices.append(index)
+            if len(selected_incorrect_indices) == 3:
+                break
+
+    selected_indices = [correct_index, *selected_incorrect_indices]
 
     options: list[dict[str, Any]] = []
     remapped_correct_index = 0
