@@ -19,23 +19,6 @@ class RuleType(str, Enum):
     COLOR = "color"
 
 
-class DistractorReason(str, Enum):
-    """Reason categories for generated distractors."""
-
-    WRONG_ROTATION = "WRONG_ROTATION"
-    WRONG_COUNT = "WRONG_COUNT"
-    WRONG_POSITION = "WRONG_POSITION"
-    WRONG_COLOR = "WRONG_COLOR"
-    WRONG_SHAPE = "WRONG_SHAPE"
-    WRONG_SIZE = "WRONG_SIZE"
-    WRONG_PROGRESSION = "WRONG_PROGRESSION"
-    OMISSION_OF_RULE = "OMISSION_OF_RULE"
-    PARTIAL_REASONING = "PARTIAL_REASONING"
-    PERCEPTUAL_SIMILARITY = "PERCEPTUAL_SIMILARITY"
-    PARTIAL_PATTERN = "PARTIAL_PATTERN"
-    MIRROR_INSTEAD_OF_ROTATION = "MIRROR_INSTEAD_OF_ROTATION"
-
-
 class CognitiveSkill(str, Enum):
     """Cognitive skill categories associated with each puzzle."""
 
@@ -74,60 +57,12 @@ class SkillProfile:
 
 
 @dataclass(frozen=True)
-class DifficultyProfile:
-    """Multi-dimensional cognitive difficulty estimate for a puzzle."""
-
-    overall: float
-    working_memory: float
-    pattern_complexity: float
-    visual_complexity: float
-    rule_complexity: float
-    abstraction: float
-    distractor_strength: float
-
-    def as_dict(self) -> dict[str, float]:
-        return {
-            "overall": self.overall,
-            "working_memory": self.working_memory,
-            "pattern_complexity": self.pattern_complexity,
-            "visual_complexity": self.visual_complexity,
-            "rule_complexity": self.rule_complexity,
-            "abstraction": self.abstraction,
-            "distractor_strength": self.distractor_strength,
-        }
-
-
-@dataclass(frozen=True)
 class Rule:
     """A reasoning rule used to generate or explain a matrix puzzle."""
 
     type: RuleType
     value: Any
     difficulty: float
-
-
-@dataclass(frozen=True)
-class Distractor:
-    """An incorrect answer option with its reasoning metadata."""
-
-    figure: Figure
-    reason: DistractorReason
-    explanation: str
-    origin_rule: RuleType
-    difficulty: float = 0.0
-
-
-@dataclass(frozen=True)
-class AnswerOption:
-    """A labeled answer option for a generated matrix puzzle."""
-
-    label: str
-    figure: Figure
-    is_correct: bool
-    reason: DistractorReason | None = None
-    explanation: str = ""
-    origin_rule: RuleType | None = None
-    difficulty: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -140,27 +75,132 @@ class Figure:
     color: str
 
 
+class DistractorReason(str, Enum):
+    """Semantic reason a distractor option is incorrect."""
+
+    WRONG_ROTATION = "WRONG_ROTATION"
+    WRONG_SIZE = "WRONG_SIZE"
+    WRONG_SHAPE = "WRONG_SHAPE"
+    WRONG_COUNT = "WRONG_COUNT"
+    WRONG_POSITION = "WRONG_POSITION"
+    WRONG_COLOR = "WRONG_COLOR"
+    WRONG_PROGRESSION = "WRONG_PROGRESSION"
+    OMISSION_OF_RULE = "OMISSION_OF_RULE"
+    PARTIAL_REASONING = "PARTIAL_REASONING"
+    PERCEPTUAL_SIMILARITY = "PERCEPTUAL_SIMILARITY"
+    PARTIAL_PATTERN = "PARTIAL_PATTERN"
+    MIRROR_INSTEAD_OF_ROTATION = "MIRROR_INSTEAD_OF_ROTATION"
+
+
+@dataclass(frozen=True)
+class Distractor:
+    """A single candidate distractor figure with diagnostic metadata."""
+
+    figure: Figure
+    reason: DistractorReason
+    explanation: str
+    origin_rule: RuleType | None = None
+    difficulty: float = 0.0
+
+
+@dataclass(frozen=True)
+class AnswerOption:
+    """A labelled answer option presented to the solver."""
+
+    label: str
+    figure: Figure
+    is_correct: bool
+    explanation: str = ""
+    reason: DistractorReason | None = None
+    origin_rule: RuleType | None = None
+    difficulty: float = 0.0
+
+
+@dataclass(frozen=True)
+class DifficultyProfile:
+    """Multi-dimensional cognitive difficulty breakdown for a puzzle."""
+
+    overall: float
+    working_memory: float
+    pattern_complexity: float
+    visual_complexity: float
+    rule_complexity: float
+    abstraction: float
+    distractor_strength: float
+
+
+class ContractViolationError(ValueError):
+    """Raised when a MatrixPuzzle fails its canonical contract invariants."""
+
+
 @dataclass(frozen=True)
 class MatrixPuzzle:
-    """Canonical representation of a generated Raven-style matrix puzzle."""
+    """Canonical validated puzzle aggregate for the Cognera matrix pipeline.
 
+    Fields are partitioned into two lifecycle categories:
+    - Core generation fields (always present): seed, rules, grid, correct_answer,
+      distractors, skill_profile.
+    - Validated contract fields (required before leaving finalization boundary):
+      options, correct_index, explanation, missing_position, quality_score,
+      quality_metadata, difficulty, difficulty_label, difficulty_profile.
+
+    Call validate_contract() to assert all validated fields satisfy invariants.
+    """
+
+    # --- Core generation fields ---
     seed: int
     rules: tuple[Rule, ...]
     grid: tuple[tuple[Figure | None, ...], ...]
     correct_answer: Figure
-    distractors: tuple[Distractor, ...]
+    distractors: tuple[Figure, ...]
     skill_profile: SkillProfile
-    missing_position: tuple[int, int] = (2, 2)
-    difficulty: float = 0.0
+
+    # --- Canonical contract fields (RE-001) ---
+    options: tuple[AnswerOption, ...] | None = None
+    correct_index: int = -1
     explanation: str = ""
-    options: tuple[AnswerOption, ...] = ()
-    correct_index: int = 0
-    difficulty_profile: DifficultyProfile | None = None
-    difficulty_label: str = "Medium"
-    quality_score: float = 0.0
-    quality_components: dict[str, float] | None = None
+    missing_position: tuple[int, int] | None = None
+    quality_score: float | None = None
     quality_metadata: dict[str, Any] | None = None
+    difficulty: float | None = None
+    difficulty_label: str | None = None
+    difficulty_profile: DifficultyProfile | None = None
 
     @property
     def solution(self) -> Figure:
+        """Alias for correct_answer; consumed by the difficulty engine."""
         return self.correct_answer
+
+    def validate_contract(self) -> None:
+        """Assert all canonical contract invariants. Raises ContractViolationError on failure."""
+        violations: list[str] = []
+
+        if not self.options:
+            violations.append("options must be present and non-empty for a validated puzzle")
+
+        if self.options is not None:
+            if self.correct_index < 0 or self.correct_index >= len(self.options):
+                violations.append(
+                    f"correct_index {self.correct_index} does not reference an existing option"
+                )
+
+        if not self.explanation:
+            violations.append("explanation must be present for a validated puzzle")
+
+        if self.quality_metadata is None:
+            violations.append("quality_metadata container must be present for a validated puzzle")
+
+        difficulty_present = [
+            self.difficulty is not None,
+            self.difficulty_label is not None,
+            self.difficulty_profile is not None,
+        ]
+        if any(difficulty_present) and not all(difficulty_present):
+            violations.append(
+                "difficulty, difficulty_label, and difficulty_profile must all be set or all be absent"
+            )
+
+        if violations:
+            raise ContractViolationError(
+                "MatrixPuzzle contract violated: " + "; ".join(violations)
+            )
