@@ -5,12 +5,8 @@ matrices, applying rule definitions, and explaining generated puzzles.
 """
 
 from .models import (
-    AnswerOption,
     CognitiveSkill,
     ContractViolationError,
-    DifficultyProfile,
-    Distractor,
-    DistractorReason,
     Figure,
     MatrixPuzzle,
     Rule,
@@ -21,12 +17,8 @@ from .rule_engine import MatrixGenerator, RuleRegistry, BaseRule
 from .explainer import explain_puzzle
 
 __all__ = [
-    "AnswerOption",
     "CognitiveSkill",
     "ContractViolationError",
-    "DifficultyProfile",
-    "Distractor",
-    "DistractorReason",
     "Figure",
     "MatrixPuzzle",
     "Rule",

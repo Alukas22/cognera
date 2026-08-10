@@ -88,7 +88,7 @@ class PuzzleQualityEngine:
         perceptual_validation_passed: bool,
     ) -> dict[str, bool]:
         option_keys = [self._figure_key(option.figure) for option in puzzle.options]
-        distractor_keys = [self._figure_key(d.figure) for d in puzzle.distractors]
+        distractor_keys = [self._figure_key(getattr(distractor, "figure", distractor)) for distractor in puzzle.distractors]
 
         correct_count = sum(1 for option in puzzle.options if option.is_correct)
         one_correct = correct_count == 1 and 0 <= puzzle.correct_index < len(puzzle.options)
@@ -106,8 +106,9 @@ class PuzzleQualityEngine:
 
         active_rule_types = {rule.type for rule in puzzle.rules}
         distractor_reasons_ok = all(
-            d.origin_rule in active_rule_types and d.figure != puzzle.correct_answer
-            for d in puzzle.distractors
+            getattr(distractor, "origin_rule", None) in active_rule_types
+            and getattr(distractor, "figure", distractor) != puzzle.correct_answer
+            for distractor in puzzle.distractors
         )
 
         return {

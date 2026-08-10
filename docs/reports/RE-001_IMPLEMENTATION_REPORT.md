@@ -11,6 +11,32 @@ Design document: docs/reports/RE-001_TECHNICAL_DESIGN.md
 
 RE-001 establishes the canonical `MatrixPuzzle` contract for the Cognera matrix pipeline. The implementation adds all architecture-required supporting models (`DistractorReason`, `Distractor`, `AnswerOption`, `DifficultyProfile`, `ContractViolationError`) and expands `MatrixPuzzle` with nine validated contract fields plus a `validate_contract()` method and `solution` property. All new fields carry defaults so the existing generation surface is fully backward compatible.
 
+### Integration completion update (2026-08-10)
+
+The initial RE-001 implementation was updated to close the integration findings from `docs/reports/RE-001_INTEGRATION_REVIEW.md`.
+
+Changes made:
+
+1. Integrated `MatrixPuzzle.validate_contract()` into the runtime generation path by finalizing validated puzzles inside `MatrixGenerator.generate()` before puzzle payloads are returned.
+2. Strengthened contract enforcement for `missing_position`, `quality_score`, and `difficulty` versus `difficulty_profile.overall` alignment.
+3. Removed `AnswerOption`, `Distractor`, `DistractorReason`, and `DifficultyProfile` from the package-root public API in `backend/app/matrix/__init__.py` so RE-002-owned model primitives are no longer exported prematurely.
+4. Relocated primitive-model tests out of `backend/tests/test_matrix_models.py` into `backend/tests/test_matrix_model_primitives.py` so the RE-001 suite stays scoped to contract behavior.
+5. Updated the demo endpoint and generator-adjacent tests to consume the validated `MatrixPuzzle` contract.
+
+Files changed in the integration-completion update:
+
+1. `backend/app/main.py`
+2. `backend/app/matrix/__init__.py`
+3. `backend/app/matrix/difficulty_engine.py`
+4. `backend/app/matrix/models.py`
+5. `backend/app/matrix/quality_engine.py`
+6. `backend/app/matrix/quality_tools.py`
+7. `backend/app/matrix/rule_engine.py`
+8. `backend/tests/test_matrix_demo_endpoint.py`
+9. `backend/tests/test_matrix_model_primitives.py`
+10. `backend/tests/test_matrix_models.py`
+11. `backend/tests/test_rule_engine.py`
+
 ---
 
 ## Files Changed
@@ -104,8 +130,11 @@ Added members:
 1. `options` must be present and non-empty.
 2. `correct_index` must be a valid zero-based index into `options`.
 3. `explanation` must be non-empty.
-4. `quality_metadata` container must be present (internal schema deferred to RE-003).
-5. `difficulty`, `difficulty_label`, and `difficulty_profile` must either all be set or all be absent.
+4. `missing_position` must be present, in-bounds, and reference the empty matrix cell.
+5. `quality_score` must be present for validated puzzles.
+6. `quality_metadata` container must be present (internal schema deferred to RE-003).
+7. `difficulty`, `difficulty_label`, and `difficulty_profile` must either all be set or all be absent.
+8. When difficulty fields are present, `difficulty_profile.overall` must match `difficulty`.
 
 ---
 
@@ -165,6 +194,32 @@ Added members:
 ---
 
 ## Tests Executed
+
+### Integration-completion validation
+
+```
+pytest backend/tests/test_matrix_models.py backend/tests/test_rule_engine.py backend/tests/test_matrix_demo_endpoint.py backend/tests/test_matrix_model_primitives.py -q
+46 passed in 0.56s
+```
+
+```
+pytest backend/tests/test_rotation_generator.py backend/tests/test_quality_tools.py backend/tests/test_failure_patterns.py -q
+19 passed in 0.21s
+```
+
+Broader affected tests that were checked but remain outside RE-001 package-root export scope:
+
+```
+pytest backend/tests/test_rotation_generator.py backend/tests/test_quality_tools.py backend/tests/test_failure_patterns.py backend/tests/test_difficulty_engine.py backend/tests/test_human_reasoning_validator.py -q
+2 collection errors
+```
+
+Collection blockers:
+
+1. `test_difficulty_engine.py` expects `CognitiveDifficultyEngine` to be exported from `backend.app.matrix`.
+2. `test_human_reasoning_validator.py` expects `HumanReasoningValidator` to be exported from `backend.app.matrix`.
+
+Those exports belong to later backlog scope and were intentionally not widened during RE-001 integration completion.
 
 ### test_matrix_models.py
 

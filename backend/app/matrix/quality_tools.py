@@ -121,8 +121,13 @@ def run_statistical_validation(samples: int, start_seed: int = 10_000) -> dict:
             duplicated_answers += 1
 
         distractor_keys = {
-            (d.figure.shape, d.figure.rotation, d.figure.size, d.figure.color)
-            for d in puzzle.distractors
+            (
+                getattr(distractor, "figure", distractor).shape,
+                getattr(distractor, "figure", distractor).rotation,
+                getattr(distractor, "figure", distractor).size,
+                getattr(distractor, "figure", distractor).color,
+            )
+            for distractor in puzzle.distractors
         }
         if len(distractor_keys) == len(puzzle.distractors):
             unique_distractor_count += 1

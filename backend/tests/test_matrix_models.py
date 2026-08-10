@@ -7,8 +7,6 @@ from backend.app.matrix.models import (
     CognitiveSkill,
     ContractViolationError,
     DifficultyProfile,
-    Distractor,
-    DistractorReason,
     Figure,
     MatrixPuzzle,
     Rule,
@@ -131,118 +129,6 @@ def test_matrix_puzzle_dataclass_fields_are_assigned() -> None:
     assert puzzle.correct_answer == "A"
     assert puzzle.distractors == distractors
     assert puzzle.skill_profile == skill_profile
-
-
-# ---------------------------------------------------------------------------
-# DistractorReason enum
-# ---------------------------------------------------------------------------
-
-def test_distractor_reason_enum_has_all_expected_values() -> None:
-    expected = {
-        "WRONG_ROTATION", "WRONG_SIZE", "WRONG_SHAPE", "WRONG_COUNT",
-        "WRONG_POSITION", "WRONG_COLOR", "WRONG_PROGRESSION", "OMISSION_OF_RULE",
-        "PARTIAL_REASONING", "PERCEPTUAL_SIMILARITY", "PARTIAL_PATTERN",
-        "MIRROR_INSTEAD_OF_ROTATION",
-    }
-    assert {r.value for r in DistractorReason} == expected
-
-
-def test_distractor_reason_is_string_enum() -> None:
-    assert DistractorReason.WRONG_ROTATION == "WRONG_ROTATION"
-
-
-# ---------------------------------------------------------------------------
-# Distractor dataclass
-# ---------------------------------------------------------------------------
-
-def test_distractor_fields_are_assigned() -> None:
-    fig = _figure()
-    d = Distractor(
-        figure=fig,
-        reason=DistractorReason.WRONG_ROTATION,
-        explanation="Rotation differs.",
-        origin_rule=RuleType.ROTATION,
-        difficulty=0.6,
-    )
-    assert d.figure == fig
-    assert d.reason == DistractorReason.WRONG_ROTATION
-    assert d.explanation == "Rotation differs."
-    assert d.origin_rule == RuleType.ROTATION
-    assert d.difficulty == 0.6
-
-
-def test_distractor_optional_fields_default_to_none_and_zero() -> None:
-    fig = _figure()
-    d = Distractor(figure=fig, reason=DistractorReason.WRONG_SHAPE, explanation="Wrong.")
-    assert d.origin_rule is None
-    assert d.difficulty == 0.0
-
-
-def test_distractor_is_frozen() -> None:
-    fig = _figure()
-    d = Distractor(figure=fig, reason=DistractorReason.WRONG_COLOR, explanation="Wrong color.")
-    with pytest.raises((AttributeError, TypeError)):
-        d.difficulty = 1.0  # type: ignore[misc]
-
-
-# ---------------------------------------------------------------------------
-# AnswerOption dataclass
-# ---------------------------------------------------------------------------
-
-def test_answer_option_fields_are_assigned() -> None:
-    fig = _figure()
-    opt = AnswerOption(
-        label="A",
-        figure=fig,
-        is_correct=True,
-        explanation="Correct.",
-        reason=None,
-        origin_rule=RuleType.ROTATION,
-        difficulty=0.5,
-    )
-    assert opt.label == "A"
-    assert opt.figure == fig
-    assert opt.is_correct is True
-    assert opt.explanation == "Correct."
-    assert opt.reason is None
-    assert opt.origin_rule == RuleType.ROTATION
-    assert opt.difficulty == 0.5
-
-
-def test_answer_option_optional_fields_have_defaults() -> None:
-    fig = _figure()
-    opt = AnswerOption(label="B", figure=fig, is_correct=False)
-    assert opt.explanation == ""
-    assert opt.reason is None
-    assert opt.origin_rule is None
-    assert opt.difficulty == 0.0
-
-
-def test_answer_option_is_frozen() -> None:
-    opt = AnswerOption(label="A", figure=_figure(), is_correct=True)
-    with pytest.raises((AttributeError, TypeError)):
-        opt.label = "Z"  # type: ignore[misc]
-
-
-# ---------------------------------------------------------------------------
-# DifficultyProfile dataclass
-# ---------------------------------------------------------------------------
-
-def test_difficulty_profile_fields_are_assigned() -> None:
-    profile = _difficulty_profile()
-    assert profile.overall == 0.5
-    assert profile.working_memory == 0.4
-    assert profile.pattern_complexity == 0.5
-    assert profile.visual_complexity == 0.3
-    assert profile.rule_complexity == 0.6
-    assert profile.abstraction == 0.5
-    assert profile.distractor_strength == 0.7
-
-
-def test_difficulty_profile_is_frozen() -> None:
-    profile = _difficulty_profile()
-    with pytest.raises((AttributeError, TypeError)):
-        profile.overall = 1.0  # type: ignore[misc]
 
 
 # ---------------------------------------------------------------------------
@@ -425,6 +311,75 @@ def test_validate_contract_raises_when_explanation_missing() -> None:
         no_explanation.validate_contract()
 
 
+def test_validate_contract_raises_when_missing_position_missing() -> None:
+    puzzle = _valid_puzzle()
+    no_missing_position = MatrixPuzzle(
+        seed=puzzle.seed,
+        rules=puzzle.rules,
+        grid=puzzle.grid,
+        correct_answer=puzzle.correct_answer,
+        distractors=puzzle.distractors,
+        skill_profile=puzzle.skill_profile,
+        options=puzzle.options,
+        correct_index=puzzle.correct_index,
+        explanation=puzzle.explanation,
+        missing_position=None,
+        quality_score=puzzle.quality_score,
+        quality_metadata=puzzle.quality_metadata,
+        difficulty=puzzle.difficulty,
+        difficulty_label=puzzle.difficulty_label,
+        difficulty_profile=puzzle.difficulty_profile,
+    )
+    with pytest.raises(ContractViolationError):
+        no_missing_position.validate_contract()
+
+
+def test_validate_contract_raises_when_missing_position_is_not_empty_cell() -> None:
+    puzzle = _valid_puzzle()
+    invalid_missing_position = MatrixPuzzle(
+        seed=puzzle.seed,
+        rules=puzzle.rules,
+        grid=puzzle.grid,
+        correct_answer=puzzle.correct_answer,
+        distractors=puzzle.distractors,
+        skill_profile=puzzle.skill_profile,
+        options=puzzle.options,
+        correct_index=puzzle.correct_index,
+        explanation=puzzle.explanation,
+        missing_position=(0, 0),
+        quality_score=puzzle.quality_score,
+        quality_metadata=puzzle.quality_metadata,
+        difficulty=puzzle.difficulty,
+        difficulty_label=puzzle.difficulty_label,
+        difficulty_profile=puzzle.difficulty_profile,
+    )
+    with pytest.raises(ContractViolationError):
+        invalid_missing_position.validate_contract()
+
+
+def test_validate_contract_raises_when_quality_score_missing() -> None:
+    puzzle = _valid_puzzle()
+    no_quality_score = MatrixPuzzle(
+        seed=puzzle.seed,
+        rules=puzzle.rules,
+        grid=puzzle.grid,
+        correct_answer=puzzle.correct_answer,
+        distractors=puzzle.distractors,
+        skill_profile=puzzle.skill_profile,
+        options=puzzle.options,
+        correct_index=puzzle.correct_index,
+        explanation=puzzle.explanation,
+        missing_position=puzzle.missing_position,
+        quality_score=None,
+        quality_metadata=puzzle.quality_metadata,
+        difficulty=puzzle.difficulty,
+        difficulty_label=puzzle.difficulty_label,
+        difficulty_profile=puzzle.difficulty_profile,
+    )
+    with pytest.raises(ContractViolationError):
+        no_quality_score.validate_contract()
+
+
 def test_validate_contract_raises_when_quality_metadata_missing() -> None:
     puzzle = _valid_puzzle()
     no_metadata = MatrixPuzzle(
@@ -492,6 +447,29 @@ def test_validate_contract_accepts_all_difficulty_fields_absent() -> None:
         difficulty_profile=None,
     )
     no_difficulty.validate_contract()  # must not raise
+
+
+def test_validate_contract_raises_when_difficulty_overall_mismatch_exists() -> None:
+    puzzle = _valid_puzzle()
+    mismatch = MatrixPuzzle(
+        seed=puzzle.seed,
+        rules=puzzle.rules,
+        grid=puzzle.grid,
+        correct_answer=puzzle.correct_answer,
+        distractors=puzzle.distractors,
+        skill_profile=puzzle.skill_profile,
+        options=puzzle.options,
+        correct_index=puzzle.correct_index,
+        explanation=puzzle.explanation,
+        missing_position=puzzle.missing_position,
+        quality_score=puzzle.quality_score,
+        quality_metadata=puzzle.quality_metadata,
+        difficulty=0.7,
+        difficulty_label=puzzle.difficulty_label,
+        difficulty_profile=puzzle.difficulty_profile,
+    )
+    with pytest.raises(ContractViolationError):
+        mismatch.validate_contract()
 
 
 def test_validate_contract_error_message_identifies_violated_invariants() -> None:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from math import isclose
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any
@@ -187,6 +188,20 @@ class MatrixPuzzle:
         if not self.explanation:
             violations.append("explanation must be present for a validated puzzle")
 
+        if self.missing_position is None:
+            violations.append("missing_position must be present for a validated puzzle")
+        else:
+            row, col = self.missing_position
+            if row < 0 or col < 0 or row >= len(self.grid):
+                violations.append("missing_position must reference a valid matrix location")
+            elif col >= len(self.grid[row]):
+                violations.append("missing_position must reference a valid matrix location")
+            elif self.grid[row][col] is not None:
+                violations.append("missing_position must identify the empty matrix cell")
+
+        if self.quality_score is None:
+            violations.append("quality_score must be present for a validated puzzle")
+
         if self.quality_metadata is None:
             violations.append("quality_metadata container must be present for a validated puzzle")
 
@@ -199,6 +214,13 @@ class MatrixPuzzle:
             violations.append(
                 "difficulty, difficulty_label, and difficulty_profile must all be set or all be absent"
             )
+        elif all(difficulty_present):
+            if self.difficulty_label == "":
+                violations.append("difficulty_label must not be empty for a validated puzzle")
+            if not isclose(self.difficulty_profile.overall, self.difficulty):
+                violations.append(
+                    "difficulty and difficulty_profile.overall must describe the same difficulty state"
+                )
 
         if violations:
             raise ContractViolationError(

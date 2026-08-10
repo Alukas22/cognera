@@ -106,7 +106,7 @@ class CognitiveDifficultyEngine:
         )
 
     def _distractor_strength(self, puzzle: MatrixPuzzle) -> float:
-        distractors = [option for option in puzzle.options if not option.is_correct]
+        distractors = [option for option in (puzzle.options or ()) if not option.is_correct]
         if not distractors:
             distractors = []
             for distractor in puzzle.distractors:
@@ -116,7 +116,7 @@ class CognitiveDifficultyEngine:
 
         scores = []
         for distractor in distractors:
-            figure = distractor.figure
+            figure = getattr(distractor, "figure", distractor)
             similarity = self._figure_similarity(figure, puzzle.solution)
             rule_overlap = 1.0 if getattr(distractor, "origin_rule", None) in {rule.type for rule in puzzle.rules} else 0.5
             visual_similarity = self._visual_similarity(figure, puzzle.solution)
