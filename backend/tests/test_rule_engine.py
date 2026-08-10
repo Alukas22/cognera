@@ -77,3 +77,13 @@ def test_composite_generation_is_deterministic() -> None:
     second = generator.generate(seed=2024)
 
     assert first == second
+
+
+def test_composite_generation_meets_all_quality_acceptance_gates() -> None:
+    puzzle = MatrixGenerator(RuleRegistry()).generate(seed=2024)
+    validation = puzzle.quality_metadata["validation_results"]
+
+    assert validation["quality_engine_acceptance"] is True
+    assert validation["human_reasoning_validator_acceptance"] is True
+    assert validation["explanation_rejects_each_distractor"] is True
+    assert puzzle.quality_metadata["generation_diagnostics"]["attempts"] >= 1

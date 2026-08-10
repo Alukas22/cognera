@@ -220,14 +220,66 @@ class MatrixGenerator:
             return self._finalize_puzzle(raw_puzzle, [self.rule], [self.rule])
 
         available_rules = sorted(self.registry.available(), key=lambda rule_type: rule_type.value)
-        rng = random.Random(seed)
-        selection_count = rng.randint(2, min(4, len(available_rules)))
-        selected_types = rng.sample(available_rules, selection_count)
-        selected_rules = [self.registry.get(rule_type) for rule_type in selected_types]
-        composite = CompositeRule(selected_rules)
-        raw_puzzle = composite.generate(seed)
         candidate_rules = [self.registry.get(rule_type) for rule_type in available_rules]
-        return self._finalize_puzzle(raw_puzzle, selected_rules, candidate_rules)
+
+        max_attempts = 48
+        rejection_reasons: dict[str, int] = {}
+        fallback_puzzle: MatrixPuzzle | None = None
+
+        for attempt in range(max_attempts):
+            attempt_seed = seed + (attempt * 7919)
+            rng = random.Random(attempt_seed)
+            selection_count = rng.randint(2, min(4, len(available_rules)))
+            selected_types = rng.sample(available_rules, selection_count)
+            selected_rules = [self.registry.get(rule_type) for rule_type in selected_types]
+            composite = CompositeRule(selected_rules)
+            raw_puzzle = composite.generate(attempt_seed)
+            puzzle = self._finalize_puzzle(raw_puzzle, selected_rules, candidate_rules)
+
+            if fallback_puzzle is None:
+                fallback_puzzle = puzzle
+
+            validation_results = puzzle.quality_metadata.get("validation_results", {})
+            failed = [name for name, passed in validation_results.items() if not passed]
+            for reason in failed:
+                rejection_reasons[reason] = rejection_reasons.get(reason, 0) + 1
+
+            if self._accepted_by_all_quality_gates(puzzle):
+                quality_metadata = dict(puzzle.quality_metadata)
+                generation_diagnostics = dict(quality_metadata.get("generation_diagnostics", {}))
+                generation_diagnostics.update(
+                    {
+                        "attempts": attempt + 1,
+                        "accepted_candidate_seed": attempt_seed,
+                        "rejected_candidates": attempt,
+                        "rejection_reasons": rejection_reasons,
+                    }
+                )
+                quality_metadata["generation_diagnostics"] = generation_diagnostics
+                return replace(puzzle, seed=seed, quality_metadata=quality_metadata)
+
+        if fallback_puzzle is None:
+            raise ValueError("Unable to generate candidate puzzle.")
+
+        fallback_metadata = dict(fallback_puzzle.quality_metadata)
+        fallback_diagnostics = dict(fallback_metadata.get("generation_diagnostics", {}))
+        fallback_diagnostics.update(
+            {
+                "attempts": max_attempts,
+                "accepted_candidate_seed": None,
+                "rejected_candidates": max_attempts,
+                "rejection_reasons": rejection_reasons,
+            }
+        )
+        fallback_metadata["generation_diagnostics"] = fallback_diagnostics
+        return replace(fallback_puzzle, seed=seed, quality_metadata=fallback_metadata)
+
+    def _accepted_by_all_quality_gates(self, puzzle: MatrixPuzzle) -> bool:
+        validation = puzzle.quality_metadata.get("validation_results", {})
+        return bool(
+            validation.get("quality_engine_acceptance")
+            and validation.get("human_reasoning_validator_acceptance")
+        )
 
     def _finalize_puzzle(
         self,
@@ -254,8 +306,8 @@ class MatrixGenerator:
             options=options,
             correct_index=correct_index,
             distractors=tuple(distractor.figure for distractor in distractor_models),
-            explanation=explain_puzzle(puzzle),
         )
+        puzzle = replace(puzzle, explanation=explain_puzzle(puzzle))
 
         perceptual_validation_passed, perceptual_reasons = self.perceptual_validator.validate(puzzle)
         quality_accepted, quality_score, quality_components, quality_checks = self.quality_engine.assess(

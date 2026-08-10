@@ -105,10 +105,11 @@ class PuzzleQualityEngine:
                     break
 
         active_rule_types = {rule.type for rule in puzzle.rules}
+        distractor_options = [option for option in puzzle.options if not option.is_correct]
         distractor_reasons_ok = all(
-            getattr(distractor, "origin_rule", None) in active_rule_types
-            and getattr(distractor, "figure", distractor) != puzzle.correct_answer
-            for distractor in puzzle.distractors
+            option.origin_rule in active_rule_types
+            and option.figure != puzzle.correct_answer
+            for option in distractor_options
         )
 
         return {
@@ -124,7 +125,7 @@ class PuzzleQualityEngine:
             "rejects_trivial_single_dimension": rejects_trivial_single_dimension,
             "perceptual_validation_passed": perceptual_validation_passed,
             "explanation_matches_applied_rules": explanation_matches,
-            "distractors_are_unique_and_meaningful": distractor_reasons_ok and len(puzzle.distractors) == len(set(distractor_keys)),
+            "distractors_are_unique_and_meaningful": distractor_reasons_ok and len(distractor_options) == len(set(option_keys)) - 1,
         }
 
     def _quality_components(self, puzzle: MatrixPuzzle, checks: dict[str, bool]) -> dict[str, float]:

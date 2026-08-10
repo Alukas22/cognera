@@ -2,7 +2,17 @@
 
 from __future__ import annotations
 
-from .models import MatrixPuzzle, RuleType
+from .models import Figure, MatrixPuzzle
+
+
+def _describe_figure(figure: Figure) -> str:
+    return f"{figure.size} {figure.color} {figure.shape} at {figure.rotation}\N{DEGREE SIGN}"
+
+
+def _format_cell(cell: Figure | None) -> str:
+    if cell is None:
+        return "missing target cell"
+    return _describe_figure(cell)
 
 
 def explain_puzzle(puzzle: MatrixPuzzle) -> str:
@@ -11,18 +21,31 @@ def explain_puzzle(puzzle: MatrixPuzzle) -> str:
     if not puzzle.rules:
         return "No rules are available for this puzzle."
 
-    if len(puzzle.rules) > 1:
-        return " ".join(rule.type.value.capitalize() + ": " + rule.value for rule in puzzle.rules)
+    lines: list[str] = []
 
-    rule = puzzle.rules[0]
-    if rule.type == RuleType.ROTATION:
-        return (
-            f"The figure rotates {rule.value} in each step from left to right, "
-            "top to bottom. The missing cell continues the same rotation pattern "
-            f"to become {puzzle.correct_answer.rotation} degrees."
+    for index, rule in enumerate(puzzle.rules, start=1):
+        lines.append(
+            f"Rule {index}: {rule.type.value.capitalize()} rule -> {rule.value}"
         )
 
-    return (
-        "This puzzle follows the configured rules. "
-        "The correct answer matches the pattern of the visible cells."
+    lines.append(
+        "Correct answer: "
+        f"The missing figure is {_describe_figure(puzzle.correct_answer)}."
     )
+
+    for row_index, row in enumerate(puzzle.grid, start=1):
+        rendered = " | ".join(_format_cell(cell) for cell in row)
+        lines.append(f"Row {row_index}: {rendered}")
+
+    for col_index in range(3):
+        col_cells = [puzzle.grid[row_index][col_index] for row_index in range(3)]
+        rendered = " | ".join(_format_cell(cell) for cell in col_cells)
+        lines.append(f"Column {col_index + 1}: {rendered}")
+
+    for option in puzzle.options or ():
+        if option.is_correct:
+            continue
+        reason = option.explanation.strip() or "it violates at least one active rule"
+        lines.append(f"Option {option.label} is incorrect because {reason}")
+
+    return "\n".join(lines)
