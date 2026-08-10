@@ -96,6 +96,10 @@ def run_statistical_validation(samples: int, start_seed: int = 10_000) -> dict:
     failure_pattern_timeline: list[str] = []
     rejection_events_sample: list[dict[str, object]] = []
     generated_puzzles: list = []
+    total_generation_attempts = 0
+    total_candidate_puzzles = 0
+    duplicate_distractor_rejections = 0
+    ambiguity_rejection_events = 0
 
     for offset in range(samples):
         seed = start_seed + offset
@@ -149,10 +153,25 @@ def run_statistical_validation(samples: int, start_seed: int = 10_000) -> dict:
             rule_frequency[rule.type.value] += 1
 
         diagnostics = (puzzle.quality_metadata or {}).get("generation_diagnostics", {})
+        attempts = int(diagnostics.get("attempts", 1))
+        total_generation_attempts += attempts
+        total_candidate_puzzles += attempts
+
         rejected_candidates += int(diagnostics.get("rejected_candidates", 0))
         reasons = diagnostics.get("rejection_reasons", {})
+        for reason, count in reasons.items():
+            rejection_rule_counter[str(reason)] += int(count)
         ambiguity_rejections += int(reasons.get("puzzle_is_unambiguous", 0))
         perceptual_rejections += int(reasons.get("perceptual_validation_passed", 0))
+        duplicate_distractor_rejections += int(reasons.get("assessment_distractors_not_near_duplicate", 0))
+        ambiguity_rejection_events += (
+            int(reasons.get("puzzle_is_unambiguous", 0))
+            + int(reasons.get("human_reasoning_unambiguous", 0))
+            + int(reasons.get("assessment_dominant_reasoning_blind_solver_agrees", 0))
+            + int(reasons.get("assessment_dominant_reasoning_gap_is_clear", 0))
+            + int(reasons.get("assessment_dominant_reasoning_no_viable_alternative_rules", 0))
+            + int(reasons.get("assessment_dominant_reasoning_human_unambiguous", 0))
+        )
 
         for event in diagnostics.get("rejection_events", []):
             violated = str(event.get("violated_validation_rule", "unknown"))
@@ -181,21 +200,30 @@ def run_statistical_validation(samples: int, start_seed: int = 10_000) -> dict:
             for count in answer_position_counter.values()
         )
 
-    ambiguity_rate = 0.0
-    if rejected_candidates:
-        ambiguity_rate = ambiguity_rejections / rejected_candidates
-
     acceptance_rate = valid_count / max(valid_count + rejected_candidates, 1)
+    rejection_rate = rejected_candidates / max(total_candidate_puzzles, 1)
+    average_generation_attempts = total_generation_attempts / max(valid_count, 1)
+    most_common_rejection_reasons = rejection_rule_counter.most_common(10)
+    ambiguity_rate = ambiguity_rejection_events / max(rejected_candidates, 1)
+    duplicate_distractor_rate = duplicate_distractor_rejections / max(rejected_candidates, 1)
 
     return {
         "samples_requested": samples,
         "samples_generated": valid_count,
         "generation_failures": failure_count,
         "acceptance_rate": acceptance_rate,
+        "rejection_rate": rejection_rate,
+        "average_generation_attempts": average_generation_attempts,
+        "candidate_puzzles_evaluated": total_candidate_puzzles,
         "duplicated_answers": duplicated_answers,
         "rejected_puzzles": rejected_candidates,
         "rejected_by_perceptual_validation": perceptual_rejections,
         "ambiguity_rate": ambiguity_rate,
+        "duplicate_distractor_rate": duplicate_distractor_rate,
+        "most_common_rejection_reasons": [
+            {"reason": reason, "count": count}
+            for reason, count in most_common_rejection_reasons
+        ],
         "validation_pass_rate": valid_count / max(samples, 1),
         "exactly_one_correct_answer_rate": 1.0 if valid_count > 0 else 0.0,
         "unique_option_rate": unique_option_count / denominator,
@@ -241,14 +269,12 @@ def _explanation_coverage(puzzle) -> float:
     if not explanation:
         return 0.0
 
-    rule_hits = 0
-    for index, _rule in enumerate(puzzle.rules, start=1):
-        if f"Rule {index}" in explanation:
-            rule_hits += 1
-    rule_coverage = rule_hits / max(len(puzzle.rules), 1)
+    required_sections = ["Översikt", "Steg 1", "Steg 2", "Kontroll", "Rätt svar"]
+    rule_hits = sum(1 for section in required_sections if section in explanation)
+    rule_coverage = rule_hits / len(required_sections)
 
     incorrect = [option for option in puzzle.options if not option.is_correct]
-    incorrect_hits = sum(1 for option in incorrect if f"Option {option.label}" in explanation)
+    incorrect_hits = sum(1 for option in incorrect if f"Alternativ {option.label}" in explanation)
     incorrect_coverage = incorrect_hits / max(len(incorrect), 1)
 
     return 0.6 * rule_coverage + 0.4 * incorrect_coverage

@@ -84,12 +84,21 @@ class ExpertQualityReviewer:
         if not lines:
             return 0.0
 
-        rule_lines = [line for line in lines if line.startswith("Rule ")]
-        option_lines = [line for line in lines if line.startswith("Option ")]
+        section_coverage = {
+            "Översikt": any(line == "Översikt" for line in lines),
+            "Steg 1": any(line == "Steg 1" for line in lines),
+            "Steg 2": any(line == "Steg 2" for line in lines),
+            "Kontroll": any(line == "Kontroll" for line in lines),
+            "Rätt svar": any(line == "Rätt svar" for line in lines),
+        }
+        alternative_coverage = sum(
+            1
+            for label in ("A", "B", "C", "D", "E", "F")
+            if any(line == f"Alternativ {label}" for line in lines)
+        )
 
-        expected_options = len([option for option in puzzle.options if not option.is_correct])
-        rule_coverage = min(1.0, len(rule_lines) / max(len(puzzle.rules), 1))
-        option_coverage = min(1.0, len(option_lines) / max(expected_options, 1))
+        rule_coverage = sum(1.0 for present in section_coverage.values() if present) / len(section_coverage)
+        option_coverage = min(1.0, alternative_coverage / 6.0)
 
         return _clamp_10(10.0 * (0.6 * rule_coverage + 0.4 * option_coverage))
 
@@ -97,9 +106,17 @@ class ExpertQualityReviewer:
         explanation = puzzle.explanation
         if not explanation:
             return False
-        for index, rule in enumerate(puzzle.rules, start=1):
-            if f"Rule {index}:" not in explanation:
-                return False
-            if str(rule.value) not in explanation:
-                return False
-        return True
+        required = [
+            "Översikt",
+            "Steg 1",
+            "Steg 2",
+            "Kontroll",
+            "Rätt svar",
+            "Alternativ A",
+            "Alternativ B",
+            "Alternativ C",
+            "Alternativ D",
+            "Alternativ E",
+            "Alternativ F",
+        ]
+        return all(section in explanation for section in required)

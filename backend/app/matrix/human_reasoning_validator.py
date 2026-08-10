@@ -26,6 +26,18 @@ def _rule_dimension(rule_type: RuleType) -> str | None:
     return None
 
 
+def _rule_label_sv(rule_type: RuleType) -> str:
+    return {
+        RuleType.ROTATION: "vridning",
+        RuleType.SIZE: "storlek",
+        RuleType.COUNT: "antal",
+        RuleType.SHAPE: "yttre form",
+        RuleType.POSITION: "placering",
+        RuleType.MIRROR: "spegling",
+        RuleType.COLOR: "inre markering",
+    }.get(rule_type, rule_type.value)
+
+
 @dataclass(frozen=True)
 class HumanReasoningReview:
     quality_score: float
@@ -355,28 +367,26 @@ class HumanReasoningValidator:
         explanation = puzzle.explanation
         if not explanation:
             return False
-        return all(f"Row {row}:" in explanation for row in (1, 2, 3))
+        return "Steg 1" in explanation and "Vad händer i raderna?" in explanation
 
     def _explanation_covers_columns(self, puzzle: MatrixPuzzle) -> bool:
         explanation = puzzle.explanation
         if not explanation:
             return False
-        return all(f"Column {col}:" in explanation for col in (1, 2, 3))
+        return "Steg 2" in explanation and "Vad händer i kolumnerna?" in explanation
 
     def _explanation_justifies_correct(self, puzzle: MatrixPuzzle) -> bool:
         explanation = puzzle.explanation
         if not explanation:
             return False
-        return "Correct answer:" in explanation or "Therefore, the missing figure" in explanation
+        return "Rätt svar" in explanation and "Varför är detta korrekt?" in explanation
 
     def _explanation_rejects_each_distractor(self, puzzle: MatrixPuzzle) -> bool:
         explanation = puzzle.explanation
         if not explanation:
             return False
-        for option in puzzle.options:
-            if option.is_correct:
-                continue
-            if f"Option {option.label}" not in explanation:
+        for label in ("A", "B", "C", "D", "E", "F"):
+            if f"Alternativ {label}" not in explanation:
                 return False
         return True
 
@@ -384,9 +394,9 @@ class HumanReasoningValidator:
         explanation = puzzle.explanation
         if not explanation:
             return False
-        for index, rule in enumerate(puzzle.rules, start=1):
-            if f"Rule {index}:" not in explanation:
-                return False
-            if str(rule.value) not in explanation:
+        if "Kontroll" not in explanation:
+            return False
+        for rule in puzzle.rules:
+            if _rule_label_sv(rule.type) not in explanation:
                 return False
         return True

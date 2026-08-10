@@ -9,13 +9,13 @@ from .models import Figure, MatrixPuzzle, RuleType
 
 
 _RULE_KEYWORDS: dict[RuleType, tuple[str, ...]] = {
-    RuleType.ROTATION: ("rotation",),
-    RuleType.SHAPE: ("shape",),
-    RuleType.COLOR: ("color",),
-    RuleType.SIZE: ("size",),
-    RuleType.COUNT: ("count",),
-    RuleType.POSITION: ("position", "row/column", "diagonal"),
-    RuleType.MIRROR: ("mirror", "symmetry"),
+    RuleType.ROTATION: ("rotation", "vridning"),
+    RuleType.SHAPE: ("shape", "yttre form"),
+    RuleType.COLOR: ("color", "inre markering"),
+    RuleType.SIZE: ("size", "storlek"),
+    RuleType.COUNT: ("count", "antal"),
+    RuleType.POSITION: ("position", "rad", "kolumn", "placering"),
+    RuleType.MIRROR: ("mirror", "symmetry", "spegling"),
 }
 
 
@@ -104,6 +104,21 @@ class PuzzleQualityEngine:
                 if not any(keyword in explanation_lower for keyword in keywords):
                     explanation_matches = False
                     break
+        if explanation_matches:
+            required_sections = [
+                "översikt",
+                "steg 1",
+                "steg 2",
+                "kontroll",
+                "rätt svar",
+                "alternativ a",
+                "alternativ b",
+                "alternativ c",
+                "alternativ d",
+                "alternativ e",
+                "alternativ f",
+            ]
+            explanation_matches = all(section in explanation_lower for section in required_sections)
 
         active_rule_types = {rule.type for rule in puzzle.rules}
         distractor_options = [option for option in puzzle.options if not option.is_correct]
@@ -149,8 +164,9 @@ class PuzzleQualityEngine:
 
         explanation_quality = 0.0
         if checks["explanation_matches_applied_rules"]:
-            rule_steps = puzzle.explanation.count("Rule ")
-            incorrect_steps = puzzle.explanation.count("Option ")
+            lower = puzzle.explanation.lower()
+            rule_steps = lower.count("steg ") + lower.count("kontroll")
+            incorrect_steps = lower.count("alternativ ")
             expected_incorrect = max(0, len([option for option in puzzle.options if not option.is_correct]))
             coverage = 1.0 if expected_incorrect == 0 else min(1.0, incorrect_steps / expected_incorrect)
             explanation_quality = _clamp(0.5 + min(0.3, rule_steps * 0.15) + 0.2 * coverage)

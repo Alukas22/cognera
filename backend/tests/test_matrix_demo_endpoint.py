@@ -35,10 +35,13 @@ def test_matrix_demo_endpoint_can_return_swedish_explanation() -> None:
     payload = response.json()
     explanation = payload["explanation"]
 
-    assert "## Översikt" in explanation
-    assert "## Steg för steg" in explanation
-    assert "## Varför rätt svar är korrekt?" in explanation
-    assert "## Varför de andra alternativen är fel?" in explanation
+    assert "Översikt" in explanation
+    assert "Steg 1" in explanation
+    assert "Steg 2" in explanation
+    assert "Kontroll" in explanation
+    assert "Rätt svar" in explanation
+    assert "Alternativ A" in explanation
+    assert "Alternativ F" in explanation
 
 
 def test_matrix_demo_endpoint_is_deterministic() -> None:

@@ -9,6 +9,7 @@ from itertools import permutations
 from typing import Iterable
 
 from .answer_options import AnswerOptionEngine
+from .assessment_quality_gate import AssessmentQualityGate
 from .difficulty_engine import CognitiveDifficultyEngine
 from .expert_reviewer import ExpertQualityReviewer
 from .explainer import explain_puzzle
@@ -215,6 +216,7 @@ class MatrixGenerator:
         self.difficulty_engine = CognitiveDifficultyEngine()
         self.expert_reviewer = ExpertQualityReviewer()
         self.human_reasoning_validator = HumanReasoningValidator()
+        self.assessment_quality_gate = AssessmentQualityGate()
         self.perceptual_validator = PerceptualValidationEngine()
         self.quality_engine = PuzzleQualityEngine()
         if isinstance(rule_or_registry, RuleRegistry):
@@ -232,9 +234,8 @@ class MatrixGenerator:
         available_rules = sorted(self.registry.available(), key=lambda rule_type: rule_type.value)
         candidate_rules = [self.registry.get(rule_type) for rule_type in available_rules]
 
-        max_attempts = 48
+        max_attempts = 128
         rejection_reasons: dict[str, int] = {}
-        fallback_puzzle: MatrixPuzzle | None = None
 
         for attempt in range(max_attempts):
             attempt_seed = seed + (attempt * 7919)
@@ -243,10 +244,12 @@ class MatrixGenerator:
             selected_rules = [self.registry.get(rule_type) for rule_type in selected_types]
             composite = CompositeRule(selected_rules)
             raw_puzzle = composite.generate(attempt_seed)
-            puzzle = self._finalize_puzzle(raw_puzzle, selected_rules, candidate_rules)
-
-            if fallback_puzzle is None:
-                fallback_puzzle = puzzle
+            try:
+                puzzle = self._finalize_puzzle(raw_puzzle, selected_rules, candidate_rules)
+            except Exception as error:
+                reason = f"candidate_generation_error:{error.__class__.__name__}"
+                rejection_reasons[reason] = rejection_reasons.get(reason, 0) + 1
+                continue
 
             validation_results = puzzle.quality_metadata.get("validation_results", {})
             failed = [name for name, passed in validation_results.items() if not passed]
@@ -267,27 +270,18 @@ class MatrixGenerator:
                 quality_metadata["generation_diagnostics"] = generation_diagnostics
                 return replace(puzzle, seed=seed, quality_metadata=quality_metadata)
 
-        if fallback_puzzle is None:
-            raise ValueError("Unable to generate candidate puzzle.")
-
-        fallback_metadata = dict(fallback_puzzle.quality_metadata)
-        fallback_diagnostics = dict(fallback_metadata.get("generation_diagnostics", {}))
-        fallback_diagnostics.update(
-            {
-                "attempts": max_attempts,
-                "accepted_candidate_seed": None,
-                "rejected_candidates": max_attempts,
-                "rejection_reasons": rejection_reasons,
-            }
+        raise ValueError(
+            "Unable to generate a puzzle that passes all assessment quality gates "
+            f"after {max_attempts} attempts (seed={seed}, rejection_reasons={rejection_reasons})."
         )
-        fallback_metadata["generation_diagnostics"] = fallback_diagnostics
-        return replace(fallback_puzzle, seed=seed, quality_metadata=fallback_metadata)
 
     def _accepted_by_all_quality_gates(self, puzzle: MatrixPuzzle) -> bool:
         validation = puzzle.quality_metadata.get("validation_results", {})
         return bool(
             validation.get("quality_engine_acceptance")
+            and validation.get("expert_reviewer_acceptance")
             and validation.get("human_reasoning_validator_acceptance")
+            and validation.get("assessment_quality_gate_acceptance")
         )
 
     def _select_rule_types(self, rng: random.Random, available_rules: list[RuleType]) -> list[RuleType]:
@@ -340,14 +334,17 @@ class MatrixGenerator:
             difficulty_profile=difficulty_profile,
         )
 
-        options, correct_index, distractor_models = self.answer_option_engine.build(puzzle)
+        options, correct_index, distractor_models = self.answer_option_engine.build(
+            puzzle,
+            selected_rules=selected_rules,
+        )
         puzzle = replace(
             puzzle,
             options=options,
             correct_index=correct_index,
             distractors=tuple(distractor.figure for distractor in distractor_models),
         )
-        puzzle = replace(puzzle, explanation=explain_puzzle(puzzle))
+        puzzle = replace(puzzle, explanation=explain_puzzle(puzzle, language="sv"))
 
         perceptual_validation_passed, perceptual_reasons = self.perceptual_validator.validate(puzzle)
         quality_accepted, quality_score, quality_components, quality_checks = self.quality_engine.assess(
@@ -374,13 +371,21 @@ class MatrixGenerator:
             candidate_rules=candidate_rules,
             perceptual_validation_passed=perceptual_validation_passed,
         )
+        assessment_review = self.assessment_quality_gate.evaluate(
+            puzzle,
+            selected_rules,
+            human_checks,
+            human_diagnostics,
+        )
 
         validation_results = {
             **quality_checks,
             **human_checks,
+            **assessment_review.checks,
             "quality_engine_acceptance": quality_accepted,
             "expert_reviewer_acceptance": reviewer_accepted,
             "human_reasoning_validator_acceptance": not human_review.rejection_reasons,
+            "assessment_quality_gate_acceptance": assessment_review.passed,
             "explanation_covers_all_visible_cells": (
                 human_checks["explanation_explains_every_row"]
                 and human_checks["explanation_explains_every_column"]
@@ -421,6 +426,7 @@ class MatrixGenerator:
                 "rejection_events": [],
                 "expert_reviewer": reviewer_diagnostics,
                 "human_reasoning": human_diagnostics,
+                "assessment_quality_gate": assessment_review.diagnostics,
             },
         }
 

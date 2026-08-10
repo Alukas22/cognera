@@ -86,43 +86,21 @@ def _rule_label_sv(rule_name: str) -> str:
     }.get(rule_name, "regeln")
 
 
-def _rule_steps_sv(rule_name: str) -> tuple[str, str]:
-    return {
-        "rotation": (
-            "Vad händer?",
-            "Orienteringen ändras lika mycket varje steg. Hur ser man det? Jämför hur figuren pekar i varje ruta.",
-        ),
-        "size": (
-            "Vad händer?",
-            "Figuren blir större eller mindre enligt ett jämnt mönster. Hur ser man det? Titta på storleken mellan rutorna.",
-        ),
-        "count": (
-            "Vad händer?",
-            "Det återkommande innehållet blir fler eller färre enligt en fast ordning. Hur ser man det? Räkna delarna i varje steg.",
-        ),
-        "shape": (
-            "Vad händer?",
-            "Den yttre formen följer en bestämd följd. Hur ser man det? Jämför formen från ruta till ruta.",
-        ),
-        "position": (
-            "Vad händer?",
-            "En del av figuren flyttar sig enligt en tydlig ordning. Hur ser man det? Följ samma del över hela matrisen.",
-        ),
-        "mirror": (
-            "Vad händer?",
-            "Figuren speglas över mitten på ett konsekvent sätt. Hur ser man det? Jämför vänster och höger sida.",
-        ),
-        "color": (
-            "Vad händer?",
-            "Den inre markeringen följer en fast ordning. Hur ser man det? Se hur den återkommer i varje steg.",
-        ),
-    }.get(rule_name, ("Vad händer?", "Mönstret följer en konsekvent regel. Hur ser man det? Jämför rutorna steg för steg."))
+def _rule_summary_sv(puzzle: MatrixPuzzle) -> str:
+    if not puzzle.rules:
+        return "ingen tydlig regel"
+    labels = [_rule_label_sv(rule.type.value) for rule in puzzle.rules]
+    unique_labels: list[str] = []
+    for label in labels:
+        if label not in unique_labels:
+            unique_labels.append(label)
+    return ", ".join(unique_labels)
 
 
 def _correct_answer_reason_sv(puzzle: MatrixPuzzle) -> str:
     return (
         "Rätt svar följer samma ordning som de synliga rutorna. "
-        "Det passar in i både raden och kolumnen utan att bryta mot någon av reglerna."
+        "Det passar i både rad- och kolumnmönstret samtidigt."
     )
 
 
@@ -162,41 +140,41 @@ def _reject_reason_sv(option) -> str:
 
 
 def _explain_puzzle_sv(puzzle: MatrixPuzzle) -> str:
-    if not puzzle.rules:
-        return "## Översikt\n\nInga regler är tillgängliga för det här pusslet."
+    rule_summary = _rule_summary_sv(puzzle)
+    rows_focus = "radmönstret" if not puzzle.rules else f"radmönstret i {rule_summary}"
+    cols_focus = "kolumnmönstret" if not puzzle.rules else f"kolumnmönstret i {rule_summary}"
 
-    lines: list[str] = []
-    lines.append("## Översikt")
-    lines.append("")
-    lines.append("Mönstret bygger på att flera enkla förändringar upprepas på ett ordnat sätt.")
-    lines.append("Om man följer både raden och kolumnen blir den saknade rutan möjlig att förstå utan att gissa.")
-    lines.append("")
+    lines: list[str] = [
+        "Översikt",
+        "- Vad är huvudidén? Följ samma förändring i varje rad och kolumn för att hitta den enda rimliga saknade figuren.",
+        "",
+        "Steg 1",
+        f"- Vad händer i raderna? Identifiera {rows_focus} och kontrollera att progressionen är konsekvent.",
+        "",
+        "Steg 2",
+        f"- Vad händer i kolumnerna? Kontrollera {cols_focus} så att samma logik återkommer vertikalt.",
+        "",
+        "Kontroll",
+        "- Varför fungerar båda samtidigt? Endast ett alternativ uppfyller både rad- och kolumnregeln samtidigt.",
+        "",
+        "Rätt svar",
+        (
+            "- Varför är detta korrekt? "
+            f"Figuren är {_correct_answer_summary_sv(puzzle.correct_answer)} och följer alla aktiva regler."
+        ),
+        "",
+    ]
 
-    lines.append("## Steg för steg")
-    lines.append("")
-
-    for index, rule in enumerate(puzzle.rules, start=1):
-        heading, body = _rule_steps_sv(rule.type.value)
-        lines.append(f"- Regel {index}")
-        lines.append(f"  - {heading}")
-        lines.append(f"    - {body}")
-        lines.append(f"    - {_rule_label_sv(rule.type.value).capitalize()}: {_rule_overview_sv(rule.type.value)}.")
-        lines.append("")
-
-    lines.append("## Varför rätt svar är korrekt?")
-    lines.append("")
-    lines.append(f"- Den rätta figuren är {_correct_answer_summary_sv(puzzle.correct_answer)}.")
-    lines.append(f"- {_correct_answer_reason_sv(puzzle)}")
-    lines.append("")
-
-    lines.append("## Varför de andra alternativen är fel?")
-    lines.append("")
-
-    for option in puzzle.options or ():
-        if option.is_correct:
-            continue
-        lines.append(f"- {option.label}")
-        lines.append(f"  - {_reject_reason_sv(option)}")
+    option_by_label = {option.label: option for option in puzzle.options or ()}
+    for label in ("A", "B", "C", "D", "E", "F"):
+        option = option_by_label.get(label)
+        lines.append(f"Alternativ {label}")
+        if option is None:
+            lines.append("- Varför är detta fel? Alternativet saknar bedömningsdata och uppfyller inte valideringskravet.")
+        elif option.is_correct:
+            lines.append("- Varför är detta fel? Det är inte fel, detta är rätt svar.")
+        else:
+            lines.append(f"- Varför är detta fel? {_reject_reason_sv(option)}")
         lines.append("")
 
     return "\n".join(lines).strip()

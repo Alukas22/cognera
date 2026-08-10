@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import random
-
 from .figure_components import color_from_components, derive_components, shell_from_components, size_from_components
 from .models import AnswerOption, Distractor, DistractorReason, Figure, MatrixPuzzle, Rule, RuleType
-from .rules import COLORS, ROTATIONS, SHAPES, SIZES
+from .rules import COLORS, ROTATIONS, SHAPES, SIZES, BaseRule
 
 
 OPTION_LABELS = ("A", "B", "C", "D", "E", "F")
@@ -15,7 +14,11 @@ OPTION_LABELS = ("A", "B", "C", "D", "E", "F")
 class AnswerOptionEngine:
     """Generate deterministic production answer options from a solved puzzle."""
 
-    def build(self, puzzle: MatrixPuzzle) -> tuple[tuple[AnswerOption, ...], int, tuple[Distractor, ...]]:
+    def build(
+        self,
+        puzzle: MatrixPuzzle,
+        selected_rules: list[BaseRule] | None = None,
+    ) -> tuple[tuple[AnswerOption, ...], int, tuple[Distractor, ...]]:
         for attempt in range(4):
             candidates = self._collect_candidates(puzzle, attempt)
             candidates.sort(
@@ -25,6 +28,7 @@ class AnswerOptionEngine:
                 )
             )
             distractors: list[Distractor] = []
+            relaxed_pool: list[Distractor] = []
             seen_figures: set[tuple[str, int, str, str]] = set()
             correct_key = self._figure_key(puzzle.correct_answer)
 
@@ -33,9 +37,18 @@ class AnswerOptionEngine:
                 if key == correct_key or key in seen_figures:
                     continue
                 seen_figures.add(key)
+                if selected_rules and not self._is_single_rule_violation(puzzle, distractor.figure, selected_rules):
+                    relaxed_pool.append(distractor)
+                    continue
                 distractors.append(distractor)
                 if len(distractors) == 5:
                     break
+
+            if len(distractors) < 5:
+                for distractor in relaxed_pool:
+                    distractors.append(distractor)
+                    if len(distractors) == 5:
+                        break
 
             if len(distractors) < 5:
                 continue
@@ -360,6 +373,37 @@ class AnswerOptionEngine:
                 first.color != second.color,
             ]
         )
+
+    def _is_single_rule_violation(
+        self,
+        puzzle: MatrixPuzzle,
+        candidate: Figure,
+        selected_rules: list[BaseRule],
+    ) -> bool:
+        failed = 0
+        completed_grid = self._with_candidate(puzzle, candidate)
+        for rule in selected_rules:
+            if not rule.validate(completed_grid):
+                failed += 1
+                if failed > 1:
+                    return False
+        return failed == 1
+
+    def _with_candidate(self, puzzle: MatrixPuzzle, candidate: Figure) -> tuple[tuple[Figure, ...], ...]:
+        row, col = puzzle.missing_position
+        built: list[tuple[Figure, ...]] = []
+        for row_index in range(3):
+            row_cells: list[Figure] = []
+            for col_index in range(3):
+                cell = puzzle.grid[row_index][col_index]
+                if cell is None:
+                    if (row_index, col_index) != (row, col):
+                        raise ValueError("Unexpected empty cell in puzzle grid.")
+                    row_cells.append(candidate)
+                else:
+                    row_cells.append(cell)
+            built.append(tuple(row_cells))
+        return tuple(built)
 
     def _pick_alternative(self, values: list[str] | list[int], correct: str | int) -> str | int | None:
         ordered = self._ordered_values(values, correct)

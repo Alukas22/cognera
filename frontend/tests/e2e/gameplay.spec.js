@@ -4,7 +4,8 @@ test("user can complete a full puzzle cycle", async ({ page }) => {
   await page.goto("/");
 
   await expect(page.getByTestId("generate-button")).toBeVisible();
-  await expect(page.getByTestId("options-grid")).toBeVisible();
+  await page.getByTestId("generate-button").click();
+  await expect(page.getByTestId("options-grid")).toBeVisible({ timeout: 15_000 });
   await expect(page.locator("[data-action='select-option']")).toHaveCount(6);
 
   const initialPuzzleNumber = Number(await page.getByTestId("puzzle-number").innerText());
