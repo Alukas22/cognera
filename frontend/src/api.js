@@ -127,9 +127,15 @@ async function requestJson(path, options = {}, timeoutMs = DEFAULT_TIMEOUT_MS) {
   }
 }
 
-export async function fetchPuzzle(seed = null, language = getUiLanguage()) {
+export async function fetchPuzzle(seed = null, language = getUiLanguage(), options = {}) {
   const normalizedLanguage = language && language.toLowerCase().startsWith("sv") ? "sv" : "en";
-  const requestBody = seed === null ? {} : { seed };
+  const requestBody = {
+    ...(seed === null ? {} : { seed }),
+    ...(typeof options.targetDifficulty === "number"
+      ? { target_difficulty: Number(options.targetDifficulty.toFixed(3)) }
+      : {}),
+    ...(typeof options.puzzleNumber === "number" ? { puzzle_number: options.puzzleNumber } : {}),
+  };
   try {
     const { json, durationMs } = await requestJson(
       GENERATE_ENDPOINT,

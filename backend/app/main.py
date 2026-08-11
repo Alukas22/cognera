@@ -26,6 +26,8 @@ FRONTEND_INDEX_FILE = FRONTEND_DIST_DIR / "index.html"
 class GeneratePuzzleRequest(BaseModel):
     seed: int | None = None
     language: str = "en"
+    target_difficulty: float | None = None
+    puzzle_number: int | None = None
 
 logger = logging.getLogger("cognera")
 logger.setLevel(logging.INFO)
@@ -147,8 +149,31 @@ def _normalize_language(language: str | None) -> str:
     return "sv" if (language or "").lower().startswith("sv") else "en"
 
 
-def _serialize_generated_puzzle(puzzle, language: str = "en") -> dict[str, Any]:
-    return {
+def _clamp(value: float, minimum: float, maximum: float) -> float:
+    return max(minimum, min(maximum, value))
+
+
+def _adaptive_reported_difficulty(
+    raw_difficulty: float,
+    target_difficulty: float,
+    puzzle_number: int | None,
+) -> float:
+    target = _clamp(target_difficulty, 0.06, 0.64)
+
+    if puzzle_number == 1:
+        return _clamp(target, 0.06, 0.22)
+
+    blended = target + (raw_difficulty - target) * 0.12
+    bounded = _clamp(blended, target - 0.045, target + 0.045)
+    return _clamp(round(bounded, 6), 0.06, 1.0)
+
+
+def _serialize_generated_puzzle(
+    puzzle,
+    language: str = "en",
+    difficulty_override: float | None = None,
+) -> dict[str, Any]:
+    payload = {
         "seed": puzzle.seed,
         "grid": [
             [_serialize_figure(cell) for cell in row] for row in puzzle.grid
@@ -157,9 +182,14 @@ def _serialize_generated_puzzle(puzzle, language: str = "en") -> dict[str, Any]:
         "options": [_serialize_option(option) for option in puzzle.options],
         "correct_index": puzzle.correct_index,
         "explanation": explain_puzzle(puzzle, language=language),
-        "difficulty": puzzle.difficulty,
+        "difficulty": puzzle.difficulty if difficulty_override is None else difficulty_override,
         "difficulty_profile": _serialize_difficulty_profile(puzzle.difficulty_profile),
     }
+
+    if difficulty_override is not None:
+        payload["raw_difficulty"] = puzzle.difficulty
+
+    return payload
 
 
 @app.get("/matrix/demo")
@@ -200,5 +230,25 @@ async def matrix_generate(payload: GeneratePuzzleRequest | None = None) -> dict[
 
     seed = payload.seed if payload and payload.seed is not None else random.randint(1, 1_000_000_000)
     language = _normalize_language(payload.language if payload else None)
-    puzzle = MatrixGenerator(RuleRegistry()).generate(seed=seed)
-    return _serialize_generated_puzzle(puzzle, language=language)
+    target_difficulty = payload.target_difficulty if payload else None
+
+    registry = RuleRegistry()
+    if target_difficulty is not None and target_difficulty <= 0.24:
+        beginner_rule = registry.get(RuleType.ROTATION)
+        puzzle = MatrixGenerator(beginner_rule).generate(seed=seed)
+    else:
+        puzzle = MatrixGenerator(registry).generate(seed=seed)
+
+    difficulty_override = None
+    if target_difficulty is not None:
+        difficulty_override = _adaptive_reported_difficulty(
+            raw_difficulty=puzzle.difficulty,
+            target_difficulty=target_difficulty,
+            puzzle_number=payload.puzzle_number,
+        )
+
+    return _serialize_generated_puzzle(
+        puzzle,
+        language=language,
+        difficulty_override=difficulty_override,
+    )

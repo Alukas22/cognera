@@ -23,6 +23,8 @@ export function createGameState(now = Date.now()) {
     selectedIndex: null,
     isResolved: false,
     lastResult: null,
+    targetDifficulty: 0.14,
+    correctStreak: 0,
   };
 }
 
@@ -65,6 +67,7 @@ export function selectOption(state, index) {
   }
 
   const isCorrect = index === state.puzzle.correct_index;
+  const nextCorrectStreak = isCorrect ? state.correctStreak + 1 : 0;
   return {
     ...state,
     selectedIndex: index,
@@ -73,6 +76,8 @@ export function selectOption(state, index) {
     totalAnswered: state.totalAnswered + 1,
     correctAnswers: state.correctAnswers + (isCorrect ? 1 : 0),
     totalDifficulty: state.totalDifficulty + state.puzzle.difficulty,
+    correctStreak: nextCorrectStreak,
+    targetDifficulty: nextTargetDifficulty(state.targetDifficulty, isCorrect, nextCorrectStreak),
   };
 }
 
@@ -117,4 +122,17 @@ export function getBeginnerProgressionBand(puzzleNumber) {
 export function isWithinBeginnerProgressionBand(difficulty, puzzleNumber) {
   const band = getBeginnerProgressionBand(puzzleNumber);
   return difficulty >= band.min && difficulty <= band.max;
+}
+
+function nextTargetDifficulty(currentTarget, isCorrect, correctStreak) {
+  if (!isCorrect) {
+    return clampDifficulty(currentTarget - 0.02);
+  }
+
+  const streakBonus = Math.min(0.015, Math.max(0, correctStreak - 1) * 0.005);
+  return clampDifficulty(currentTarget + 0.03 + streakBonus);
+}
+
+function clampDifficulty(value) {
+  return Math.min(0.64, Math.max(0.06, Number(value.toFixed(3))));
 }

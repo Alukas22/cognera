@@ -67,6 +67,19 @@ def test_matrix_generate_endpoint_is_deterministic_for_seed() -> None:
     assert first == second
 
 
+def test_matrix_generate_endpoint_supports_beginner_target_difficulty() -> None:
+    client = TestClient(app)
+
+    payload = client.post(
+        "/api/matrix/generate",
+        json={"seed": 123, "language": "sv", "target_difficulty": 0.14, "puzzle_number": 1},
+    ).json()
+
+    assert 0.06 <= payload["difficulty"] <= 0.22
+    assert "raw_difficulty" in payload
+    assert payload["difficulty"] != payload["raw_difficulty"]
+
+
 def test_legacy_matrix_generate_endpoint_still_works() -> None:
     client = TestClient(app)
 

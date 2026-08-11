@@ -95,4 +95,34 @@ describe("game state", () => {
       expect(band.max).toBeLessThanOrEqual(1);
     }
   });
+
+  it("raises target difficulty gradually after correct answers", () => {
+    let state = createGameState(0);
+    state = setPuzzle(state, samplePuzzle, 1000);
+
+    const firstTarget = state.targetDifficulty;
+    state = selectOption(state, 3);
+    const afterFirstCorrect = state.targetDifficulty;
+
+    state = setPuzzle(state, samplePuzzle, 2000);
+    state = selectOption(state, 3);
+    const afterSecondCorrect = state.targetDifficulty;
+
+    expect(afterFirstCorrect).toBeGreaterThan(firstTarget);
+    expect(afterSecondCorrect).toBeGreaterThan(afterFirstCorrect);
+    expect(afterSecondCorrect - afterFirstCorrect).toBeLessThanOrEqual(0.05);
+  });
+
+  it("reduces target difficulty slightly after incorrect answers", () => {
+    let state = createGameState(0);
+    state = setPuzzle(state, samplePuzzle, 1000);
+    state = selectOption(state, 3);
+    const raisedTarget = state.targetDifficulty;
+
+    state = setPuzzle(state, samplePuzzle, 2000);
+    state = selectOption(state, 1);
+
+    expect(state.targetDifficulty).toBeLessThan(raisedTarget);
+    expect(raisedTarget - state.targetDifficulty).toBeLessThanOrEqual(0.03);
+  });
 });
