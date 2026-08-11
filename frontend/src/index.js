@@ -8,6 +8,7 @@ const logger = createLogger("frontend.app");
 const root = document.getElementById("root");
 
 let state = createGameState();
+let puzzleLoadInFlight = null;
 
 function routeView() {
   return window.location.pathname === "/health-check" ? "health" : "game";
@@ -45,6 +46,10 @@ function render() {
 }
 
 async function loadPuzzle() {
+  if (puzzleLoadInFlight !== null || state.loading) {
+    return puzzleLoadInFlight;
+  }
+
   state = {
     ...state,
     view: "game",
@@ -54,40 +59,48 @@ async function loadPuzzle() {
   };
   render();
 
-  try {
-    const nextPuzzleNumber = state.puzzleNumber + 1;
-    const attemptLimit = nextPuzzleNumber <= 3 ? 10 : 6;
-    const uiLanguage = "sv";
-    let bestPuzzle = null;
+  puzzleLoadInFlight = (async () => {
+    try {
+      const nextPuzzleNumber = state.puzzleNumber + 1;
+      const attemptLimit = nextPuzzleNumber <= 3 ? 10 : 6;
+      const uiLanguage = "sv";
+      let bestPuzzle = null;
 
-    for (let attempt = 0; attempt < attemptLimit; attempt++) {
-      const seed = (nextPuzzleNumber * 1_000_003 + attempt * 7_919) % 1_000_000_000;
-      const puzzle = await fetchPuzzle(seed, uiLanguage);
+      for (let attempt = 0; attempt < attemptLimit; attempt++) {
+        const seed = (nextPuzzleNumber * 1_000_003 + attempt * 7_919) % 1_000_000_000;
+        const puzzle = await fetchPuzzle(seed, uiLanguage);
 
-      if (bestPuzzle === null || puzzle.difficulty < bestPuzzle.difficulty) {
-        bestPuzzle = puzzle;
+        if (bestPuzzle === null || puzzle.difficulty < bestPuzzle.difficulty) {
+          bestPuzzle = puzzle;
+        }
+
+        if (isWithinBeginnerProgressionBand(puzzle.difficulty, nextPuzzleNumber)) {
+          bestPuzzle = puzzle;
+          break;
+        }
       }
 
-      if (isWithinBeginnerProgressionBand(puzzle.difficulty, nextPuzzleNumber)) {
-        bestPuzzle = puzzle;
-        break;
-      }
+      state = setPuzzle(state, bestPuzzle);
+    } catch (error) {
+      logger.error("puzzle.load_failed", {
+        message: error instanceof Error ? error.message : "Unknown error",
+      });
+      state = {
+        ...state,
+        errorMessage: "Det gick inte att ladda en uppgift just nu.",
+      };
+    } finally {
+      state = {
+        ...state,
+        loading: false,
+        appLoading: false,
+      };
+      puzzleLoadInFlight = null;
+      render();
     }
+  })();
 
-    state = setPuzzle(state, bestPuzzle);
-  } catch (error) {
-    logger.error("puzzle.load_failed", {
-      message: error instanceof Error ? error.message : "Unknown error",
-    });
-    state = {
-      ...state,
-      loading: false,
-      appLoading: false,
-      errorMessage: "Det gick inte att ladda en uppgift just nu.",
-    };
-  }
-
-  render();
+  return puzzleLoadInFlight;
 }
 
 async function loadHealth() {

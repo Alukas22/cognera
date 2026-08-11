@@ -149,7 +149,7 @@ export function renderApp(root, state, handlers) {
           </div>
         </div>
         <div class="header-controls">
-          <button class="action-button" data-action="generate" data-testid="generate-button">Skapa uppgift</button>
+          <button class="action-button" data-action="generate" data-testid="generate-button" ${state.loading ? "disabled" : ""}>Skapa uppgift</button>
           <div class="pill">Svårighet ${puzzleDifficulty}</div>
           <div class="pill" data-role="timer">${elapsed}</div>
           ${diagnosticsPill(state)}
